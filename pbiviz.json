@@ -1,0 +1,25 @@
+{
+	"visual":{
+		"name":"mapshape",
+		"displayName":"MapShape - Nick",
+		"guid":"mapshape6E8AD36247F24DFCB81EBB5F2C5BB788",
+		"visualClassName":"Visual",
+		"version":"2.7.5",
+		"description":"Plot GeoJson Geometries",
+		"supportUrl":"https://mainroads.wa.gov.au/",
+		"gitHubUrl":""
+	},
+	"apiVersion":"2.6.0",
+	"author":{
+		"name":"Nicholas Archer",
+		"email":"nicholas.archer@mainroads.wa.gov.au"
+	},
+	"assets":{
+		"icon":"assets/icon.png"
+	},
+	"externalJS":[],
+	"style":"style/visual.less",
+	"capabilities":"capabilities.json",
+	"dependencies":null,
+	"stringResources":[]
+}

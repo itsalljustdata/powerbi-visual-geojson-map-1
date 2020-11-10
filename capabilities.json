@@ -1,0 +1,47 @@
+{
+	"suppressDefaultTitle":true,
+    "dataRoles": [
+		{
+			"displayName": "GeoJson Feature",
+			"description": "Provide a single column of type text, where each row is a single valid GeoJSON Feature: {\"type\":\"Feature\", ...}. CRS is assumed to be EPSG:4326 aka WGS84",
+			"name": "geojson_field", 
+			"kind": "GroupingOrMeasure"
+		},
+		{
+			"displayName": "Other Columns",
+			"description": "These columns will show up in a popup when the user clicks or hovers over the feature on the map.",
+			"name": "other_columns",
+			"kind": "GroupingOrMeasure"
+		}
+	],
+    "dataViewMappings": [
+		{
+			"conditions": [{
+				"geojson_field":{
+					"max": 1,
+					"min": 1
+				}
+			}],
+			"table": {
+				"rows": {
+					"select": [
+						{
+							"for": {
+								"in": "geojson_field"
+							}
+						},{
+							"for": {
+								"in":"other_columns"
+							}
+						}
+					],
+					"dataReductionAlgorithm": {
+						"top": {
+							"count": 30000
+						}
+					}
+				}
+			}
+		}
+	]
+}

@@ -1,0 +1,15 @@
+node_modules
+.DS_Store
+.tmp
+
+dist
+*.pbiviz
+
+typings
+.api
+*.log
+DELME/
+.vscode/
+webpack.statistics.*
+
+.env.json
