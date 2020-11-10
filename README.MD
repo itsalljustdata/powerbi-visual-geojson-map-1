@@ -1,8 +1,6 @@
 # PowerBI GeoJSON Visual
 
-An interactive map PowerBI custom visual for datasets that include a single GeoJSON "type":"Feature" per row.
-
-
+This is an interactive map PowerBI custom visual for datasets that include a text column consisting of one GeoJSON `{"type":"Feature", ...}` per row.
 
 ## Requirements
 To work on this project the following are needed:
@@ -20,7 +18,7 @@ To work on this project the following are needed:
 ## 'Environments'
 To hide the mapping service / API key URL used for the satelite imagery layer, the URL is stored in a json file called `.env.json` which is not included in this repository. To compile this project you will need to create this file manually. There is an `.env.example.json` file which describes what content is needed in this file.
 
-If you do not have a suitable mapping service URL then I leave it to disable this function; start by deleting the following line from `visual.ts`:
+If you do not have a suitable mapping service URL then I leave it to you to disable this function; start by deleting the following line from `visual.ts`:
 ```TypeScript
 import * as PROCESS_ENV from "./.env.json";
 ```
