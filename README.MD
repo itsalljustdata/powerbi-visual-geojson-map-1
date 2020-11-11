@@ -2,6 +2,9 @@
 
 This is an interactive map PowerBI custom visual for datasets that include a text column consisting of one GeoJSON `{"type":"Feature", ...}` per row.
 
+## But Why?
+See my related project which generates the type of data that this visual consumes: https://github.com/thehappycheese/linear_referencing_geocoding_server
+
 ## Requirements
 To work on this project the following are needed:
 1) Install Node.js
