@@ -44,6 +44,7 @@ import OSM from 'ol/source/OSM';
 import XYZ from 'ol/source/XYZ';
 import { Style, Stroke, Circle } from 'ol/style';
 
+
 import GeoJSON from 'ol/format/GeoJSON';
 import Control from 'ol/control/Control';
 import { defaults as ol_control_defaults } from 'ol/control';
@@ -70,11 +71,10 @@ export class Visual implements IVisual {
 
 	private layer_vector_geojson: VectorLayer;
 	private layer_vector_geojson_shadow: VectorLayer;
-	private layer_metro_map;
-	private layer_osm;
+	private layer_metro_map: TileLayer;
+	private layer_osm: TileLayer;
 
-	private control_layer_switch;
-
+	private ui_use_skyview_checkbox;
 
 	constructor(options: VisualConstructorOptions) {
 		let self = this
@@ -119,24 +119,23 @@ export class Visual implements IVisual {
 		////////////////////////////////////////////////////////
 		let control_container = document.createElement("div")
 		control_container.setAttribute("style", 'background-color:rgba(255,255,255,0.5);padding:3px;border:1px solid grey;width:auto;margin-left:60px;display:inline-block;')
-		let control_layer_switch_input = document.createElement("input")
-		this.control_layer_switch = control_layer_switch_input
-		control_layer_switch_input.setAttribute("type", "checkbox")
-		control_layer_switch_input.setAttribute("id", "mapshapenicklayercheck")
-		let ui_label = document.createElement("label")
-		ui_label.innerHTML = "use skyview"
-		ui_label.setAttribute("for", "mapshapenicklayercheck")
-		control_container.appendChild(ui_label)
-		control_container.appendChild(control_layer_switch_input)
+		this.ui_use_skyview_checkbox =  document.createElement("input");
+		this.ui_use_skyview_checkbox.setAttribute("type", "checkbox")
+		this.ui_use_skyview_checkbox.setAttribute("id", "mapshapenick-use-skyview-checkbox")
+		let ui_use_skyview_label = document.createElement("label")
+		ui_use_skyview_label.innerHTML = "use skyview"
+		ui_use_skyview_label.setAttribute("for", "mapshapenick-use-skyview-checkbox")
+		control_container.appendChild(ui_use_skyview_label)
+		control_container.appendChild(this.ui_use_skyview_checkbox)
 
 		var control_layer_switch = new Control({
 			element: control_container,
 		});
 
-		control_layer_switch_input.onchange = function (e: Event) {
+		this.ui_use_skyview_checkbox.onchange = function (e: Event) {
 			let target = e.target as HTMLInputElement
-			console.log(target)
-			if (self.control_layer_switch.checked) {
+			//console.log(target)
+			if (self.ui_use_skyview_checkbox.checked) {
 				self.map.removeLayer(self.layer_osm)
 				self.map.getLayers().insertAt(0, self.layer_metro_map)
 			} else {
@@ -154,22 +153,23 @@ export class Visual implements IVisual {
 		this.layer_vector_geojson = new VectorLayer({
 			source: new VectorSource(),
 			style: (feature, resolution) => {
-				//const colors = [ "#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300", "#dc0ab4", "#b3d4ff", "#00bfa0", "#f0cccc" ];
+                //const colors = [ "#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300", "#dc0ab4", "#b3d4ff", "#00bfa0", "#f0cccc" ];
+                //["#3E485DCC","#544699CC","#782FADCC","#D01FD6CC","#FC2265CC"]
 				let color = "red"
 				let props = feature.getProperties()
 				for (let key in props) {
 					if (props[key].name && props[key].name.toUpperCase() == "YEAR") {
 						let year = parseFloat(props[key].value)
 						if (year <= 2021) {
-							color = "rgb(255, 255, 0,0.8)"
+							color = "#e6d800CC"
 						} else if (year <= 2026) {
-							color = "rgb(230, 0, 73,0.8)"
+							color = "#e60049CC"
 						} else if (year <= 2031) {
-							color = "rgb(128, 255, 60, 0.8)"
+							color = "#50e991CC"
 						} else if (year <= 2036) {
-							color = "rgb(155, 25, 245, 0.8)"
+							color = "#9b19f5CC"
 						} else if (year <= 2041) {
-							color = "rgb(11, 180, 255, 0.8)"
+							color = "#0bb4ffCC"
 						}
 					}
 				}
@@ -212,7 +212,10 @@ export class Visual implements IVisual {
 		////////////////////////////////////////////////////////
 		// LAYER OPEN STREET MAPS
 		////////////////////////////////////////////////////////
-		this.layer_osm = new TileLayer({ source: new OSM() })
+        this.layer_osm = new TileLayer({ source: new OSM() })
+        this.layer_osm.on('prerender', function (event) {
+			event.context.canvas.style.filter = "grayscale(80%) contrast(0.8) brightness(1.2)"
+        });
 
 		////////////////////////////////////////////////////////
 		// LAYER IMAGERY
@@ -222,6 +225,10 @@ export class Visual implements IVisual {
 				url: PROCESS_ENV.MAP_SERVICE_URL,
 			})
 		});
+		
+		this.layer_metro_map.on('prerender', function (event) {
+			event.context.canvas.style.filter = "grayscale(80%) contrast(0.8) brightness(1.2)"
+        });
 
 		////////////////////////////////////////////////////////
 		// MAP CONTAINER DIV
@@ -249,11 +256,11 @@ export class Visual implements IVisual {
 			hitTolerance: 3
 		})
 		select_interaction.on('select', evt => {
-			console.log("selected")
+			//console.log("selected")
 			if (evt.selected.length < 1) return;
 
 			let props = evt.selected[0].getProperties()
-			console.log("got prop", props)
+			//console.log("got prop", props)
 			let out = ""
 			let out_count = 0
 			for (let key in props) {
@@ -278,7 +285,7 @@ export class Visual implements IVisual {
 			target: this.map_target_div,
 			layers: [
 				this.layer_osm,
-				this.layer_vector_geojson_shadow,
+				//this.layer_vector_geojson_shadow,
 				this.layer_vector_geojson
 			],
 			overlays: [popup_overlay],
@@ -306,13 +313,12 @@ export class Visual implements IVisual {
 
 		let data_view = options.dataViews[0]
 
-		// TODO: abstract the folloing to functions which obtains a specific column index from the name of a column in capabilities.json.
 		let GEOJSON_COLUMN_INDEX
 		try{
 			GEOJSON_COLUMN_INDEX = get_table_column_index(data_view.table, "geojson_field")
 		}catch(e){
 			// TODO: this error indicates an error in the capabilities.json. Send to console.
-			console.log(e)
+			//console.log(e)
 			return
 		}
 
@@ -325,7 +331,7 @@ export class Visual implements IVisual {
 					json_row_Feature.push(jsonparsed)
 				} catch (e) {
 					// TODO: notify user that JSON.parse() failed for some features.
-					console.log(`json parse failed: tried to parse ${item[data_view.table.columns[GEOJSON_COLUMN_INDEX].displayName]} and got error ${e}`)
+					//console.log(`json parse failed: tried to parse ${item[data_view.table.columns[GEOJSON_COLUMN_INDEX].displayName]} and got error ${e}`)
 				}
 			}
 		})
@@ -358,13 +364,13 @@ export class Visual implements IVisual {
 			parsed_features = new GeoJSON({ featureProjection, dataProjection }).readFeatures(json_FeatureCollection)
 		} catch (e) {
 			// TODO: notify user that readFeatures failed.
-			console.log("Error: While all GeoJSON text was successfully parsed into JSON, OpenLayers was unabled to parse the resulting JSON: new ol.GeoJSON().readFeatures(...) failed. Is the input data valid GeoJSON with coordinates in EPSG:4326 ?")
+			//console.log("Error: While all GeoJSON text was successfully parsed into JSON, OpenLayers was unabled to parse the resulting JSON: new ol.GeoJSON().readFeatures(...) failed. Is the input data valid GeoJSON with coordinates in EPSG:4326 ?")
 			this.clearVectorLayers()
 			return
 		}
 		if (parsed_features.length === 0) {
 			// TODO: notify user that readFeatures failed. This seems unlikely to happen.
-			console.log("Error: While all GeoJSON text was successfully parsed into JSON and OpenLayers successfully called ol.GeoJSON().readFeatures(...), an empty list of OpenLayers features was returned despite a non-empty list of input GeoJSON features.")
+			//console.log("Error: While all GeoJSON text was successfully parsed into JSON and OpenLayers successfully called ol.GeoJSON().readFeatures(...), an empty list of OpenLayers features was returned despite a non-empty list of input GeoJSON features.")
 			this.clearVectorLayers()
 			return
 		}
