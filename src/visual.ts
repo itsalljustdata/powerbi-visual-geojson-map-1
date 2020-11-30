@@ -101,7 +101,7 @@ export class Visual implements IVisual {
 		popup_container.appendChild(popup_closer)
 		popup_content.innerHTML = "hehehe"
 
-		console.log("appended elements")
+		
 		popup_container.className = "ol-popup"
 		popup_closer.className = "ol-popup-closer"
 		var popup_overlay = new Overlay({
@@ -153,23 +153,23 @@ export class Visual implements IVisual {
 		this.layer_vector_geojson = new VectorLayer({
 			source: new VectorSource(),
 			style: (feature, resolution) => {
-                //const colors = [ "#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300", "#dc0ab4", "#b3d4ff", "#00bfa0", "#f0cccc" ];
-                //["#3E485DCC","#544699CC","#782FADCC","#D01FD6CC","#FC2265CC"]
+				//const colors = [ "#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300", "#dc0ab4", "#b3d4ff", "#00bfa0", "#f0cccc" ];
+				//["#3E485DCC","#544699CC","#782FADCC","#D01FD6CC","#FC2265CC"]
 				let color = "red"
 				let props = feature.getProperties()
 				for (let key in props) {
 					if (props[key].name && props[key].name.toUpperCase() == "YEAR") {
 						let year = parseFloat(props[key].value)
 						if (year <= 2021) {
-							color = "#e6d800CC"
+							color = "#e6d800DD"
 						} else if (year <= 2026) {
-							color = "#e60049CC"
+							color = "#e60049DD"
 						} else if (year <= 2031) {
-							color = "#50e991CC"
+							color = "#50e991DD"
 						} else if (year <= 2036) {
-							color = "#9b19f5CC"
+							color = "#9b19f5DD"
 						} else if (year <= 2041) {
-							color = "#0bb4ffCC"
+							color = "#0bb4ffDD"
 						}
 					}
 				}
@@ -212,10 +212,14 @@ export class Visual implements IVisual {
 		////////////////////////////////////////////////////////
 		// LAYER OPEN STREET MAPS
 		////////////////////////////////////////////////////////
-        this.layer_osm = new TileLayer({ source: new OSM() })
-        this.layer_osm.on('prerender', function (event) {
-			event.context.canvas.style.filter = "grayscale(80%) contrast(0.8) brightness(1.2)"
-        });
+		this.layer_osm = new TileLayer({ source: new OSM() })
+		this.layer_osm.on('prerender', function (event) {
+				event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)"
+		});
+		this.layer_osm.on('postrender', function (event) {
+			event.context.filter = "none"
+		});
+		
 
 		////////////////////////////////////////////////////////
 		// LAYER IMAGERY
@@ -227,8 +231,11 @@ export class Visual implements IVisual {
 		});
 		
 		this.layer_metro_map.on('prerender', function (event) {
-			event.context.canvas.style.filter = "grayscale(80%) contrast(0.8) brightness(1.2)"
-        });
+				event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)"
+		});
+		this.layer_metro_map.on('postrender', function (event) {
+			event.context.filter = "none"
+		});
 
 		////////////////////////////////////////////////////////
 		// MAP CONTAINER DIV
