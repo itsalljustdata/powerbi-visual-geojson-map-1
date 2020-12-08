@@ -70,7 +70,6 @@ export class Visual implements IVisual {
 	private mapview: View;
 
 	private layer_vector_geojson: VectorLayer;
-	private layer_vector_geojson_shadow: VectorLayer;
 	private layer_metro_map: TileLayer;
 	private layer_osm: TileLayer;
 
@@ -117,30 +116,30 @@ export class Visual implements IVisual {
 		//
 		// TODO: Abstract style to css
 		////////////////////////////////////////////////////////
-		let control_container = document.createElement("div")
-		control_container.setAttribute("style", 'background-color:rgba(255,255,255,0.5);padding:3px;border:1px solid grey;width:auto;margin-left:60px;display:inline-block;')
+		let control_container = document.createElement("div");
+		control_container.setAttribute("style", 'background-color:rgba(255,255,255,0.5);padding:3px;border:1px solid grey;width:auto;margin-left:60px;display:inline-block;');
 		this.ui_use_skyview_checkbox =  document.createElement("input");
-		this.ui_use_skyview_checkbox.setAttribute("type", "checkbox")
-		this.ui_use_skyview_checkbox.setAttribute("id", "mapshapenick-use-skyview-checkbox")
-		let ui_use_skyview_label = document.createElement("label")
-		ui_use_skyview_label.innerHTML = "use skyview"
-		ui_use_skyview_label.setAttribute("for", "mapshapenick-use-skyview-checkbox")
-		control_container.appendChild(ui_use_skyview_label)
-		control_container.appendChild(this.ui_use_skyview_checkbox)
+		this.ui_use_skyview_checkbox.setAttribute("type", "checkbox");
+		this.ui_use_skyview_checkbox.setAttribute("id", "mapshapenick-use-skyview-checkbox");
+		let ui_use_skyview_label = document.createElement("label");
+		ui_use_skyview_label.innerHTML = "use skyview";
+		ui_use_skyview_label.setAttribute("for", "mapshapenick-use-skyview-checkbox");
+		control_container.appendChild(ui_use_skyview_label);
+		control_container.appendChild(this.ui_use_skyview_checkbox);
 
 		var control_layer_switch = new Control({
 			element: control_container,
 		});
 
 		this.ui_use_skyview_checkbox.onchange = function (e: Event) {
-			let target = e.target as HTMLInputElement
+			let target = e.target as HTMLInputElement;
 			//console.log(target)
 			if (self.ui_use_skyview_checkbox.checked) {
-				self.map.removeLayer(self.layer_osm)
-				self.map.getLayers().insertAt(0, self.layer_metro_map)
+				self.map.removeLayer(self.layer_osm);
+				self.map.getLayers().insertAt(0, self.layer_metro_map);
 			} else {
-				self.map.removeLayer(self.layer_metro_map)
-				self.map.getLayers().insertAt(0, self.layer_osm)
+				self.map.removeLayer(self.layer_metro_map);
+				self.map.getLayers().insertAt(0, self.layer_osm);
 			}
 		}
 
@@ -153,29 +152,37 @@ export class Visual implements IVisual {
 		this.layer_vector_geojson = new VectorLayer({
 			source: new VectorSource(),
 			style: (feature, resolution) => {
+				
 				//const colors = [ "#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300", "#dc0ab4", "#b3d4ff", "#00bfa0", "#f0cccc" ];
-				//["#3E485DCC","#544699CC","#782FADCC","#D01FD6CC","#FC2265CC"]
+				// 
+				// https://learnui.design/tools/data-color-picker.html#palette ["#003f5c", "#58508d", "#bc5090", "#ff6361", "#ffa600"]
+				
+
+				// default colour:
 				let color = "red"
-				let props = feature.getProperties();
-				if(props["__pbi_columns"]){
-					props = props["__pbi_columns"]
-				}
-				for (let key in props) {
-					if (props[key].name && props[key].name.toUpperCase() == "YEAR") {
-						let year = parseFloat(props[key].value)
-						if (year <= 2021) {
-							color = "#e6d800DD"
-						} else if (year <= 2026) {
-							color = "#e60049DD"
-						} else if (year <= 2031) {
-							color = "#50e991DD"
-						} else if (year <= 2036) {
-							color = "#9b19f5DD"
-						} else if (year <= 2041) {
-							color = "#0bb4ffDD"
+
+				let feature_props = feature.getProperties();
+				
+				if(feature_props["__pbi_columns"]){
+					let column_props = feature_props["__pbi_columns"];
+					for (let key in column_props) {
+						if (column_props[key].name && column_props[key].name.toUpperCase() == "YEAR") {
+							let year = parseFloat(column_props[key].value);
+							if (year <= 2021) {
+								color = "#e6d800DD";
+							} else if (year <= 2026) {
+								color = "#e60049DD";
+							} else if (year <= 2031) {
+								color = "#50e991DD";
+							} else if (year <= 2036) {
+								color = "#9b19f5DD";
+							} else if (year <= 2041) {
+								color = "#0bb4ffDD";
+							}
 						}
 					}
 				}
+
 				return new Style({
 					stroke: new Stroke({
 						color: color,
@@ -185,42 +192,19 @@ export class Visual implements IVisual {
 						radius: 8,
 						stroke: new Stroke({ color: color, width: compute_line_width(resolution) }),
 					}),
-				})
+				});
 			}
 		});
-
-		////////////////////////////////////////////////////////
-		// LAYER VECTOR GEOJSON SHADOW
-		//
-		// Adds a white glow effect behind all lines 
-		// and point features to make them 
-		// stand out over any background map
-		////////////////////////////////////////////////////////
-		this.layer_vector_geojson_shadow = new VectorLayer({
-			source: new VectorSource(),
-			style: (feature, resolution) => {
-				return new Style({
-					stroke: new Stroke({
-						color: 'white',
-						width: compute_line_width(resolution) + 6,
-					}),
-					image: new Circle({
-						radius: 8,
-						stroke: new Stroke({ color: 'white', width: compute_line_width(resolution) + 6 }),
-					}),
-				})
-			}
-		})
 
 		////////////////////////////////////////////////////////
 		// LAYER OPEN STREET MAPS
 		////////////////////////////////////////////////////////
 		this.layer_osm = new TileLayer({ source: new OSM() })
 		this.layer_osm.on('prerender', function (event) {
-				event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)"
+				event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)";
 		});
 		this.layer_osm.on('postrender', function (event) {
-			event.context.filter = "none"
+			event.context.filter = "none";
 		});
 		
 
@@ -234,10 +218,10 @@ export class Visual implements IVisual {
 		});
 		
 		this.layer_metro_map.on('prerender', function (event) {
-				event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)"
+				event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)";
 		});
 		this.layer_metro_map.on('postrender', function (event) {
-			event.context.filter = "none"
+			event.context.filter = "none";
 		});
 
 		////////////////////////////////////////////////////////
@@ -256,7 +240,7 @@ export class Visual implements IVisual {
 			//projection: 'EPSG:3857', // 'EPSG:3857' is the Default OpenLayers projection. There is no need to specify the default.
 			center: [0, 0],
 			zoom: 0
-		})
+		});
 
 		////////////////////////////////////////////////////////
 		// MAP INTERACTION SELECT
@@ -264,27 +248,28 @@ export class Visual implements IVisual {
 		var select_interaction = new Select({
 			layers: [this.layer_vector_geojson],
 			hitTolerance: 3
-		})
+		});
+
 		select_interaction.on('select', evt => {
 			//console.log("selected")
 			if (evt.selected.length < 1) return;
 
-			let props = evt.selected[0].getProperties()
+			let props = evt.selected[0].getProperties();
 			//console.log("got prop", props)
-			let out = ""
-			let out_count = 0
+			let out = "";
+			let out_count = 0;
 			if(props["__pbi_columns"]){
 				for (let key in props["__pbi_columns"]) {
-					let val = props["__pbi_columns"][key]
+					let val = props["__pbi_columns"][key];
 					// properties that represent columns are added as {name, value} objects.
 					if(!val["name"]) continue;
 					if(!val["value"]) continue;
 					out += "<tr><td>" + escapeHtml(val.name) + "</td><td>" + escapeHtml(String(val.value)) + "</td></tr>";
-					out_count++
+					out_count++;
 				}
 			}
 			if (out_count === 0) {
-				popup_content.innerHTML = '<span style="color:grey;">No data in the \'Other Columns\' field-well</span>'
+				popup_content.innerHTML = '<span style="color:grey;">No data in the \'Other Columns\' field-well</span>';
 			} else {
 				popup_content.innerHTML = '<table><tbody>' + out + '</tbody></table>';
 			}
@@ -298,7 +283,6 @@ export class Visual implements IVisual {
 			target: this.map_target_div,
 			layers: [
 				this.layer_osm,
-				//this.layer_vector_geojson_shadow,
 				this.layer_vector_geojson
 			],
 			overlays: [popup_overlay],
@@ -322,17 +306,17 @@ export class Visual implements IVisual {
 		// OR IF OPTIONS IS NOT POPULATED WITH A TABLE OF DATA 
 		////////////////////////////////////////////////////////
 		if (!(this.map_target_div && options && options.dataViews && options.dataViews.length!==0 && options.dataViews[0].table))
-			return
+			return;
 
 		let data_view = options.dataViews[0]
 
-		let GEOJSON_COLUMN_INDEX
+		let GEOJSON_COLUMN_INDEX;
 		try{
 			GEOJSON_COLUMN_INDEX = get_table_column_index(data_view.table, "geojson_field")
 		}catch(e){
 			// TODO: this error indicates an error in the capabilities.json. Send to console.
 			//console.log(e)
-			return
+			return;
 		}
 
 		let json_row_Feature = []
@@ -364,6 +348,8 @@ export class Visual implements IVisual {
 						return { ...accumulator, ["column" + column_index]: { name: column_desc.displayName, value: data_view.table.rows[index][column_index] } }
 					}
 				}, {})
+				// Duplicate feature but with new properties.
+				// Apparently the use of elipses to expand null or undefined values is permitted so there is no need to check.
 				let result = { ...geojson_Feature, properties: {...geojson_Feature.properties, __pbi_columns:column_values}};
 				return result;
 			})
@@ -390,19 +376,18 @@ export class Visual implements IVisual {
 		let new_vector_source = new VectorSource({
 			features: parsed_features
 		})
-		this.setVectorLayerSource(new_vector_source)
-		this.mapview.fit(new_vector_source.getExtent())
 		
+		this.setVectorLayerSource(new_vector_source);
 
+		this.mapview.fit(new_vector_source.getExtent());
 
 	}
 
 	private clearVectorLayers(){
-		this.setVectorLayerSource(new VectorSource())
+		this.setVectorLayerSource(new VectorSource());
 	}
 
 	private setVectorLayerSource(new_vector_source:VectorSource<Geometry>){
-		this.layer_vector_geojson.setSource(new_vector_source)
-		this.layer_vector_geojson_shadow.setSource(new_vector_source)
+		this.layer_vector_geojson.setSource(new_vector_source);
 	}
 }

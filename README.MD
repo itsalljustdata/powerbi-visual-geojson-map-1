@@ -25,3 +25,24 @@ If you do not have a suitable mapping service URL then I leave it to you to disa
 ```TypeScript
 import * as PROCESS_ENV from "./.env.json";
 ```
+
+## Notes:
+
+Hard coded to look for a "Year" field in the 'other columns' field-well. Uses this to colour the line segments and points according to a pre-determined colour scale:
+```javascript
+if (year <= 2021) {
+	color = "#e6d800DD"
+} else if (year <= 2026) {
+	color = "#e60049DD"
+} else if (year <= 2031) {
+	color = "#50e991DD"
+} else if (year <= 2036) {
+	color = "#9b19f5DD"
+} else if (year <= 2041) {
+	color = "#0bb4ffDD"
+}
+```
+
+Experiments with gradient colours revealed that it becomes very hard to distinguish the difference and absolute value of road segments
+For example `["#3E485DCC","#544699CC","#782FADCC","#D01FD6CC","#FC2265CC"]` was very bad
+This is because adjacent road segments often need resurfacing at a similar time to neighboring segments
