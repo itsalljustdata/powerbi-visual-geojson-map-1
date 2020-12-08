@@ -156,7 +156,10 @@ export class Visual implements IVisual {
 				//const colors = [ "#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300", "#dc0ab4", "#b3d4ff", "#00bfa0", "#f0cccc" ];
 				//["#3E485DCC","#544699CC","#782FADCC","#D01FD6CC","#FC2265CC"]
 				let color = "red"
-				let props = feature.getProperties()
+				let props = feature.getProperties();
+				if(props["__pbi_columns"]){
+					props = props["__pbi_columns"]
+				}
 				for (let key in props) {
 					if (props[key].name && props[key].name.toUpperCase() == "YEAR") {
 						let year = parseFloat(props[key].value)
@@ -270,9 +273,12 @@ export class Visual implements IVisual {
 			//console.log("got prop", props)
 			let out = ""
 			let out_count = 0
-			for (let key in props) {
-				let val = props[key]
-				if (key != "geometry") {
+			if(props["__pbi_columns"]){
+				for (let key in props["__pbi_columns"]) {
+					let val = props["__pbi_columns"][key]
+					// properties that represent columns are added as {name, value} objects.
+					if(!val["name"]) continue;
+					if(!val["value"]) continue;
 					out += "<tr><td>" + escapeHtml(val.name) + "</td><td>" + escapeHtml(String(val.value)) + "</td></tr>";
 					out_count++
 				}
@@ -349,16 +355,16 @@ export class Visual implements IVisual {
 		}
 		let json_FeatureCollection = {
 			"type": "FeatureCollection",
-			'features': json_row_Feature.map((item, index) => {
+			'features': json_row_Feature.map((geojson_Feature, index) => {
 				// TODO: inject additional "properties" into each feature if required for styling?
-				let new_prop: any = item.properties || data_view.table.columns.reduce((accumulator, column_desc, column_index) => {
+				let column_values: any = data_view.table.columns.reduce((accumulator, column_desc, column_index) => {
 					if (column_index == GEOJSON_COLUMN_INDEX) {
 						return accumulator
 					} else {
 						return { ...accumulator, ["column" + column_index]: { name: column_desc.displayName, value: data_view.table.rows[index][column_index] } }
 					}
 				}, {})
-				let result = { ...item, properties: new_prop };
+				let result = { ...geojson_Feature, properties: {...geojson_Feature.properties, __pbi_columns:column_values}};
 				return result;
 			})
 		}
