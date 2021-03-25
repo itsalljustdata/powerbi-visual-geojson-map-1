@@ -32,10 +32,17 @@ import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructor
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import IVisual = powerbi.extensibility.visual.IVisual;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost
+
 import EnumerateVisualObjectInstancesOptions = powerbi.EnumerateVisualObjectInstancesOptions;
 import VisualObjectInstance = powerbi.VisualObjectInstance;
 import DataView = powerbi.DataView;
 import VisualObjectInstanceEnumerationObject = powerbi.VisualObjectInstanceEnumerationObject;
+
+
+import { dataViewObjects } from "powerbi-visuals-utils-dataviewutils";
+
+import VisualObjectInstanceEnumeration = powerbi.VisualObjectInstanceEnumeration;
+import {VisualSettings} from "./settings";
 
 import 'ol/ol.css';
 import { Map, View } from 'ol';
@@ -54,11 +61,16 @@ import VectorSource from 'ol/source/Vector';
 import Overlay from 'ol/Overlay';
 import Select from 'ol/interaction/Select';
 import { compute_line_width, escapeHtml, logExceptions } from "./util";
-import {get_table_column_index} from "./nicks_pbiviz_utils"
+import {get_table_column_index} from "./nicks_pbiviz_utils";
 import Geometry from "ol/geom/Geometry";
 
 // See src/.env.example.json
-import * as PROCESS_ENV from "./.env.json"
+import * as SECRETS from "./.secrets.json";
+
+import {state_road_vector_layer_ticks, state_road_vector_layer,other_road_vector_layer} from './nickmap/layer_road_network';
+
+export let map:Map;
+
 
 export class Visual implements IVisual {
 
@@ -66,7 +78,6 @@ export class Visual implements IVisual {
 	private target_element: HTMLElement;
 	private map_target_div: HTMLDivElement;
 
-	private map: Map;
 	private mapview: View;
 
 	private layer_vector_geojson: VectorLayer;
@@ -74,15 +85,30 @@ export class Visual implements IVisual {
 	private layer_osm: TileLayer;
 
 	private ui_use_skyview_checkbox;
+	
+	private visual_settings:VisualSettings;
+
+	private feature_id_counter = 0; // IDs must be manually added to ensure that certain open layers features work as expected. The selection interaction for example may rely on the feature ID being unique.
 
 	constructor(options: VisualConstructorOptions) {
+		
 		let self = this
 		this.host = options.host;
-		this.target_element = options.element
-		this.target_element.style.display = "grid"
-		this.target_element.style.height = "100%"
-		this.target_element.style.gridTemplateColumns = "auto"
+		this.target_element = options.element;
+		this.target_element.style.display = "grid";
+		this.target_element.style.height = "100%";
+		this.target_element.style.gridTemplateColumns = "auto";
 
+		// disable user selection of the visual
+		this.target_element.style.userSelect = "none";
+		
+		// version display
+		let version_display = document.createElement("div");
+		version_display.innerHTML = "v2021.03.25"
+		version_display.setAttribute("style", 'padding:2px;position:fixed;top:2px;right:10px;display:inline-block;font-size:80%;color:grey;');
+		var control_version_display = new Control({
+			element: version_display,
+		});
 		////////////////////////////////////////////////////////
 		// POPUP OVERLAY
 		////////////////////////////////////////////////////////
@@ -135,11 +161,11 @@ export class Visual implements IVisual {
 			let target = e.target as HTMLInputElement;
 			//console.log(target)
 			if (self.ui_use_skyview_checkbox.checked) {
-				self.map.removeLayer(self.layer_osm);
-				self.map.getLayers().insertAt(0, self.layer_metro_map);
+				map.removeLayer(self.layer_osm);
+				map.getLayers().insertAt(0, self.layer_metro_map);
 			} else {
-				self.map.removeLayer(self.layer_metro_map);
-				self.map.getLayers().insertAt(0, self.layer_osm);
+				map.removeLayer(self.layer_metro_map);
+				map.getLayers().insertAt(0, self.layer_osm);
 			}
 		}
 
@@ -213,7 +239,7 @@ export class Visual implements IVisual {
 		////////////////////////////////////////////////////////
 		this.layer_metro_map = new TileLayer({
 			source: new XYZ({
-				url: PROCESS_ENV.MAP_SERVICE_URL,
+				url: SECRETS.MAP_SERVICE_URL,
 			})
 		});
 		
@@ -253,7 +279,7 @@ export class Visual implements IVisual {
 		select_interaction.on('select', evt => {
 			//console.log("selected")
 			if (evt.selected.length < 1) return;
-
+			debugger
 			let props = evt.selected[0].getProperties();
 			//console.log("got prop", props)
 			let out = "";
@@ -279,10 +305,13 @@ export class Visual implements IVisual {
 		////////////////////////////////////////////////////////
 		// MAP 
 		////////////////////////////////////////////////////////
-		this.map = new Map({
+		map = new Map({
 			target: this.map_target_div,
 			layers: [
 				this.layer_osm,
+				state_road_vector_layer_ticks, 
+				state_road_vector_layer,
+				other_road_vector_layer,
 				this.layer_vector_geojson
 			],
 			overlays: [popup_overlay],
@@ -291,12 +320,14 @@ export class Visual implements IVisual {
 					zoom: true,
 					attribution: true,
 					rotate: true
-				}).extend([control_layer_switch])
+				}).extend([control_layer_switch, control_version_display])
 			,
 			view: this.mapview,
 			interactions: ol_interaction_defaults().extend([select_interaction])
 		});
 	}
+
+	
 
 	@logExceptions()
 	public update(options: VisualUpdateOptions) {
@@ -309,6 +340,7 @@ export class Visual implements IVisual {
 			return;
 
 		let data_view = options.dataViews[0]
+		//this.visual_settings = VisualSettings.parse<VisualSettings>(data_view);
 
 		let GEOJSON_COLUMN_INDEX;
 		try{
@@ -319,48 +351,50 @@ export class Visual implements IVisual {
 			return;
 		}
 
-		let json_row_Feature = []
+		let json_row_Features = []
 
 		data_view.table.rows.forEach((item) => {
 			if (item[GEOJSON_COLUMN_INDEX] !== "") {
 				try {
 					let jsonparsed = JSON.parse(item[GEOJSON_COLUMN_INDEX] as string)
-					json_row_Feature.push(jsonparsed)
+					
+					// TODO: inject additional "properties" into each feature if required for styling?
+					let column_values: any = data_view.table.columns.reduce((accumulator, column_desc, column_index) => {
+						if (column_index == GEOJSON_COLUMN_INDEX) {
+							return accumulator
+						} else {
+							return { ...accumulator, ["column" + column_index]: { name: column_desc.displayName, value: item[column_index] } }
+						}
+					}, {})
+					// Duplicate feature but with new properties.
+					// Apparently the use of elipses to expand null or undefined values is permitted so there is no need to check.
+					jsonparsed = { ...jsonparsed, id:this.feature_id_counter++, properties: {...jsonparsed.properties, __pbi_columns:column_values}};
+					json_row_Features.push(jsonparsed)
+
+
+
 				} catch (e) {
 					// TODO: notify user that JSON.parse() failed for some features.
 					//console.log(`json parse failed: tried to parse ${item[data_view.table.columns[GEOJSON_COLUMN_INDEX].displayName]} and got error ${e}`)
 				}
 			}
 		})
-		if(json_row_Feature.length===0){
+		if(json_row_Features.length===0){
 			// TODO: notify the user that no features were parsed
 			this.clearVectorLayers()
 			return
 		}
-		let json_FeatureCollection = {
-			"type": "FeatureCollection",
-			'features': json_row_Feature.map((geojson_Feature, index) => {
-				// TODO: inject additional "properties" into each feature if required for styling?
-				let column_values: any = data_view.table.columns.reduce((accumulator, column_desc, column_index) => {
-					if (column_index == GEOJSON_COLUMN_INDEX) {
-						return accumulator
-					} else {
-						return { ...accumulator, ["column" + column_index]: { name: column_desc.displayName, value: data_view.table.rows[index][column_index] } }
-					}
-				}, {})
-				// Duplicate feature but with new properties.
-				// Apparently the use of elipses to expand null or undefined values is permitted so there is no need to check.
-				let result = { ...geojson_Feature, properties: {...geojson_Feature.properties, __pbi_columns:column_values}};
-				return result;
-			})
-		}
-		let parsed_features = []
+
+		let parsed_features = [];
 		try {
 			// Because the GeoJSON object is not connected to the map, it doesnt know the projection we are using
 			// therefore we need to tell it.
 			let featureProjection = this.mapview.getProjection()
 			let dataProjection = new GeoJSON().readProjection({ "crs": { "type": "EPSG", "properties": { "code": 4326 } } })
-			parsed_features = new GeoJSON({ featureProjection, dataProjection }).readFeatures(json_FeatureCollection)
+			parsed_features = new GeoJSON({ featureProjection, dataProjection }).readFeatures({
+				"type": "FeatureCollection",
+				"features": json_row_Features
+			});
 		} catch (e) {
 			// TODO: notify user that readFeatures failed.
 			//console.log("Error: While all GeoJSON text was successfully parsed into JSON, OpenLayers was unabled to parse the resulting JSON: new ol.GeoJSON().readFeatures(...) failed. Is the input data valid GeoJSON with coordinates in EPSG:4326 ?")
@@ -389,5 +423,52 @@ export class Visual implements IVisual {
 
 	private setVectorLayerSource(new_vector_source:VectorSource<Geometry>){
 		this.layer_vector_geojson.setSource(new_vector_source);
+	}
+
+	// This function retruns the values to be displayed in the property pane for each object.
+	// Usually it is a bind pass of what the property pane gave you, but sometimes you may want to do
+	// validation and return other values/defaults
+	private settings = {
+		show_state_roads:{
+			value:true,
+			default:true
+		},
+		state_road_color:{
+			value:'rgb(50, 100, 100)',
+			default:'rgb(50, 100, 100)'
+		},
+		show_imagery:{
+			value:false,
+			default:false
+		}
+	}
+
+	public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): VisualObjectInstanceEnumeration {
+		let propertyGroupName = options.objectName;
+		let properties: VisualObjectInstance[] = [];
+	
+		switch (propertyGroupName) {
+			case "StateRoadSettings":
+				properties.push({
+					objectName: propertyGroupName,
+					properties: {
+						show: true,
+					},
+					selector: null
+				});
+			break;
+		};
+		
+		return properties;
+	}
+	private updateSettings(options: VisualUpdateOptions) {
+		this.settings.show_state_roads.value = DataViewObjects.getValue(
+			options.dataViews[0].metadata.objects,
+			{
+				objectName: "xAxis",
+				propertyName: "show"
+			},
+			this.settings.show_state_roads.default
+		);
 	}
 }

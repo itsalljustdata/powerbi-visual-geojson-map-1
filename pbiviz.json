@@ -4,7 +4,7 @@
 		"displayName":"MapShape - Nick",
 		"guid":"mapshape6E8AD36247F24DFCB81EBB5F2C5BB788",
 		"visualClassName":"Visual",
-		"version":"2.7.9",
+		"version":"2.7.12",
 		"description":"Plot GeoJson Geometries per row of data.",
 		"supportUrl":"https://mainroads.wa.gov.au/",
 		"gitHubUrl":""

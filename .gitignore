@@ -13,3 +13,4 @@ DELME/
 webpack.statistics.*
 
 .env.json
+.secrets.json

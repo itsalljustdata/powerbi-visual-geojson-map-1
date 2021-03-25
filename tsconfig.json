@@ -14,10 +14,11 @@
 			"dom"
 		]
 	},
-	"files": [
-		"./src/visual.ts",
-		"./src/util.ts",
-		"./src/nicks_pbiviz_utils.ts",
+	"files":[
+		"./src/visual.ts"
+	],
+	"include": [
+		"./src/**/*.ts",
 		"./src/.env.json"
 	]
 }

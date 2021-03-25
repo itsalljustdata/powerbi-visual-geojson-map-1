@@ -1,6 +1,49 @@
 {
 	"suppressDefaultTitle":true,
-    "dataRoles": [
+	"supportsHighlight": false,
+	"objects": {
+		"StateRoadSettings":{
+			"displayName": "State Roads",
+			"description": "huh?",
+			"properties": {
+				"show":{
+					"displayName": "Show State Roads",
+					"description": "huh?",
+					"type": {"bool":true}
+				},
+				"color":{
+					"displayName": "State Road Colour",
+					"description": "huh?",
+					"type": {
+						"fill": {
+							"solid": {
+								"color":true
+							}
+						}
+					}
+				},
+				"opacity":{
+					"displayName": "State Road Opacity",
+					"description": "huh?",
+					"type": {
+						"numeric": true
+					}
+				}
+			}
+		},
+		"BackgroundImageSettings":{
+			"displayName": "Background Image",
+			"description": "huh?",
+			"properties": {
+				"Metromap":{
+					"displayName": "MetroMap",
+					"description": "huh?",
+					"type":{"bool": true}
+				}
+			}
+		}
+	},
+	"dataRoles": [
 		{
 			"displayName": "GeoJson Feature",
 			"description": "Provide a single column of type text, where each row is a single valid GeoJSON Feature: {\"type\":\"Feature\", ...}. CRS is assumed to be EPSG:4326 aka WGS84",
@@ -8,18 +51,45 @@
 			"kind": "GroupingOrMeasure"
 		},
 		{
-			"displayName": "Other Columns",
-			"description": "These columns will show up in a popup when the user clicks or hovers over the feature on the map.",
+			"displayName": "Popup Info",
+			"description": "When map features are clicked a popup will show the data in the following columns.",
 			"name": "other_columns",
 			"kind": "GroupingOrMeasure"
 		}
+		,
+		{
+			"displayName": "Colour",
+			"description": "Features will be coloured using this field. Any valid CSS colour strings is accepted.",
+			"name": "colour_column",
+			"kind": "GroupingOrMeasure",
+			"requiredTypes": [{
+				"text": true
+			}]
+		},
+		{
+			"displayName": "Line Weight (px)",
+			"description": "LineString features will use this line weight",
+			"name": "line_weight_column",
+			"kind": "GroupingOrMeasure",
+			"requiredTypes": [{
+				"text": true
+			}]
+		}
 	],
-    "dataViewMappings": [
+	"dataViewMappings": [
 		{
 			"conditions": [{
 				"geojson_field":{
 					"max": 1,
 					"min": 1
+				},
+				"colour_column":{
+					"max": 1,
+					"min": 0
+				},
+				"line_weight_column":{
+					"max": 1,
+					"min": 0
 				}
 			}],
 			"table": {
@@ -32,6 +102,14 @@
 						},{
 							"for": {
 								"in":"other_columns"
+							}
+						},{
+							"for": {
+								"in":"colour_column"
+							}
+						},{
+							"for": {
+								"in":"line_weight_column"
 							}
 						}
 					],
