@@ -13,7 +13,7 @@ import { map } from '../visual';
 import { linestring_measure, linestring_ticks } from './nicks_line_tools';
 import { Vector } from './Vector';
 
-var road_network_styles = {
+export const road_network_styles = {
 	'Main Roads Controlled Path': new Style({
 		stroke: new Stroke({
 			color: 'rgba(100, 40, 100)',
@@ -23,12 +23,6 @@ var road_network_styles = {
 	'State Road': new Style({
 		stroke: new Stroke({
 			color: 'rgb(50, 100, 100)',
-			width: 1.5,
-		}),
-	}),
-	'State Road - Rural': new Style({
-		stroke: new Stroke({
-			color: 'rgb(40, 80, 80)',
 			width: 1.5,
 		}),
 	}),
@@ -54,15 +48,6 @@ var road_network_styles = {
 	})
 };
 
-function get_road_network_style(network_type, ra_name) {
-	if (network_type in road_network_styles) {
-		if (network_type == "State Road" && ra_name != "Metropolitan") {
-			return road_network_styles['State Road - Rural']
-		}
-		return road_network_styles[network_type]
-	}
-	return road_network_styles["DEFAULT"];
-}
 
 
 
@@ -101,7 +86,7 @@ let other_road_only_vector_source = new esri_vector_source({
 
 
 function state_road_vector_layer_style_function(feature, resolution) {
-	let result = get_road_network_style(feature.get("NETWORK_TYPE"), feature.get("RA_NAME"));
+	let result = road_network_styles[feature.get("NETWORK_TYPE")] ?? road_network_styles["DEFAULT"];
 	if (resolution < 0.8) {
 		let stl = road_name_text_style.clone();
 		stl.setText(feature.get("ROAD") + " - " + feature.get("ROAD_NAME"));
@@ -116,36 +101,34 @@ function state_road_vector_layer_style_function(feature, resolution) {
 	return result;
 }
 
-function other_road_vector_layer_style_function(feature, resolution) {
-	let result = get_road_network_style(feature.get("NETWORK_TYPE"), feature.get("RA_NAME"));
 
+function other_road_vector_layer_style_function(feature, resolution) {
+	let result =  road_network_styles[feature.get("NETWORK_TYPE")] ?? road_network_styles["DEFAULT"];
 	if (resolution < 0.8) {
 		let stl = road_name_text_style.clone();
 		stl.setText(feature.get("ROAD_NAME"))
 		result = result.clone()
 		result.setText(stl)
 	}
-
 	return result;
 }
 
 
-
-
-export let state_road_vector_layer = new VectorLayer({
+export let layer_state_road = new VectorLayer({
 	source: state_road_only_vector_source,
 	style: state_road_vector_layer_style_function,
 	minZoom: 8,
 });
 
-export let other_road_vector_layer = new VectorLayer({
+
+export let layer_other_roads = new VectorLayer({
 	source: other_road_only_vector_source,
 	style: other_road_vector_layer_style_function,
 	minZoom: 15,
 });
 
 
-export let custom_render_tick_text = new Text({
+let custom_render_tick_text = new Text({
 	text: "hey",
 	font: "bold 16px sans-serif",
 	textAlign: "left",
@@ -189,7 +172,7 @@ let custom_renderer_with_SLK_ticks: RenderFunction = (pixelCoordinates, state) =
 		decimal_figures = 1
 		//ticks = linestring_ticks(mls, slk_from, slk_to, 0.01, 10, canvas_size_x/pixle_ratio, canvas_size_y/pixle_ratio);
 		ticks = linestring_ticks(mls, slk_from, slk_to, 0.01, 10, canvas_size_x, canvas_size_y, decimal_figures);
-	} else if (state.resolution < 2) {
+	} else if (state.resolution < 4) {
 		decimal_figures = 0
 		//ticks = linestring_ticks(mls, slk_from, slk_to, 0.1, 10, canvas_size_x/pixle_ratio, canvas_size_y/pixle_ratio);
 		ticks = linestring_ticks(mls, slk_from, slk_to, 0.1, 10, canvas_size_x, canvas_size_y, decimal_figures);
@@ -234,7 +217,7 @@ let custom_renderer_with_SLK_ticks: RenderFunction = (pixelCoordinates, state) =
 	context.restore();
 }
 
-export let state_road_vector_layer_ticks = new VectorLayer({
+export let layer_state_road_ticks = new VectorLayer({
 	source: state_road_only_vector_source,
 	style: new Style({
 		renderer: custom_renderer_with_SLK_ticks

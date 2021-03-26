@@ -1,44 +1,83 @@
 {
-	"suppressDefaultTitle":true,
+	"suppressDefaultTitle": true,
 	"supportsHighlight": false,
 	"objects": {
-		"StateRoadSettings":{
-			"displayName": "State Roads",
-			"description": "huh?",
+		"StateRoadSettings": {
+			"displayName": "😎 IRIS Roads",
 			"properties": {
-				"show":{
-					"displayName": "Show State Roads",
-					"description": "huh?",
-					"type": {"bool":true}
+				"show": {
+					"displayName": "👁️ IRIS Roads",
+					"type": {
+						"bool": true
+					}
 				},
-				"color":{
-					"displayName": "State Road Colour",
-					"description": "huh?",
+				"show_state_roads": {
+					"displayName": "👁️ State Roads (and PSPs)",
+					"type": {
+						"bool": true
+					}
+				},
+				"show_local_roads": {
+					"displayName": "👁️ Local Roads",
+					"type": {
+						"bool": true
+					}
+				},
+				"show_slk_ticks": {
+					"displayName": "👁️ SLK Ticks",
+					"type": {
+						"bool": true
+					}
+				},
+				"state_road_color": {
+					"displayName": "State Roads",
 					"type": {
 						"fill": {
 							"solid": {
-								"color":true
+								"color": true
 							}
 						}
 					}
 				},
-				"opacity":{
-					"displayName": "State Road Opacity",
-					"description": "huh?",
+				"psp_road_color": {
+					"displayName": "PSPs",
 					"type": {
-						"numeric": true
+						"fill": {
+							"solid": {
+								"color": true
+							}
+						}
+					}
+				},
+				"local_road_color": {
+					"displayName": "Local Roads",
+					"type": {
+						"fill": {
+							"solid": {
+								"color": true
+							}
+						}
 					}
 				}
 			}
 		},
-		"BackgroundImageSettings":{
-			"displayName": "Background Image",
-			"description": "huh?",
+		"OtherMapSettings":{
+			"displayName": "😎 NickMap",
 			"properties": {
-				"Metromap":{
-					"displayName": "MetroMap",
-					"description": "huh?",
-					"type":{"bool": true}
+				"background_layer": {
+					"displayName": "Map Background Image",
+					"type": {
+						"enumeration": [
+							{
+								"displayName": "Metromap",
+								"value": "Metromap"
+							},
+							{
+								"displayName": "OSM",
+								"value": "OSM"
+							}
+						]
+					}
 				}
 			}
 		}
@@ -47,7 +86,7 @@
 		{
 			"displayName": "GeoJson Feature",
 			"description": "Provide a single column of type text, where each row is a single valid GeoJSON Feature: {\"type\":\"Feature\", ...}. CRS is assumed to be EPSG:4326 aka WGS84",
-			"name": "geojson_field", 
+			"name": "geojson_field",
 			"kind": "GroupingOrMeasure"
 		},
 		{
@@ -55,43 +94,48 @@
 			"description": "When map features are clicked a popup will show the data in the following columns.",
 			"name": "other_columns",
 			"kind": "GroupingOrMeasure"
-		}
-		,
+		},
 		{
 			"displayName": "Colour",
 			"description": "Features will be coloured using this field. Any valid CSS colour strings is accepted.",
 			"name": "colour_column",
 			"kind": "GroupingOrMeasure",
-			"requiredTypes": [{
-				"text": true
-			}]
+			"requiredTypes": [
+				{
+					"text": true
+				}
+			]
 		},
 		{
 			"displayName": "Line Weight (px)",
 			"description": "LineString features will use this line weight",
 			"name": "line_weight_column",
 			"kind": "GroupingOrMeasure",
-			"requiredTypes": [{
-				"text": true
-			}]
+			"requiredTypes": [
+				{
+					"text": true
+				}
+			]
 		}
 	],
 	"dataViewMappings": [
 		{
-			"conditions": [{
-				"geojson_field":{
-					"max": 1,
-					"min": 1
-				},
-				"colour_column":{
-					"max": 1,
-					"min": 0
-				},
-				"line_weight_column":{
-					"max": 1,
-					"min": 0
+			"conditions": [
+				{
+					"geojson_field": {
+						"max": 1,
+						"min": 1
+					},
+					"colour_column": {
+						"max": 1,
+						"min": 0
+					},
+					"line_weight_column": {
+						"max": 1,
+						"min": 0
+					}
 				}
-			}],
+			],
 			"table": {
 				"rows": {
 					"select": [
@@ -99,17 +143,20 @@
 							"for": {
 								"in": "geojson_field"
 							}
-						},{
+						},
+						{
 							"for": {
-								"in":"other_columns"
+								"in": "other_columns"
 							}
-						},{
+						},
+						{
 							"for": {
-								"in":"colour_column"
+								"in": "colour_column"
 							}
-						},{
+						},
+						{
 							"for": {
-								"in":"line_weight_column"
+								"in": "line_weight_column"
 							}
 						}
 					],

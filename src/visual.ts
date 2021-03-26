@@ -42,7 +42,7 @@ import VisualObjectInstanceEnumerationObject = powerbi.VisualObjectInstanceEnume
 import { dataViewObjects } from "powerbi-visuals-utils-dataviewutils";
 
 import VisualObjectInstanceEnumeration = powerbi.VisualObjectInstanceEnumeration;
-import {VisualSettings} from "./settings";
+import { PropertiesParser } from "./PropertiesParser";
 
 import 'ol/ol.css';
 import { Map, View } from 'ol';
@@ -61,39 +61,37 @@ import VectorSource from 'ol/source/Vector';
 import Overlay from 'ol/Overlay';
 import Select from 'ol/interaction/Select';
 import { compute_line_width, escapeHtml, logExceptions } from "./util";
-import {get_table_column_index} from "./nicks_pbiviz_utils";
+import { get_table_column_index } from "./nicks_pbiviz_utils";
 import Geometry from "ol/geom/Geometry";
 
 // See src/.env.example.json
 import * as SECRETS from "./.secrets.json";
 
-import {state_road_vector_layer_ticks, state_road_vector_layer,other_road_vector_layer} from './nickmap/layer_road_network';
+import { layer_state_road_ticks, layer_state_road, layer_other_roads, road_network_styles } from './nickmap/layer_road_network';
 
-export let map:Map;
+export let map: Map;
 
 
 export class Visual implements IVisual {
 
-	private host: IVisualHost;
+	//private host: IVisualHost;
 	private target_element: HTMLElement;
 	private map_target_div: HTMLDivElement;
 
 	private mapview: View;
 
-	private layer_vector_geojson: VectorLayer;
+	private layer_visual_data: VectorLayer;
 	private layer_metro_map: TileLayer;
 	private layer_osm: TileLayer;
 
-	private ui_use_skyview_checkbox;
-	
-	private visual_settings:VisualSettings;
+
+	private properties_parser: PropertiesParser;
 
 	private feature_id_counter = 0; // IDs must be manually added to ensure that certain open layers features work as expected. The selection interaction for example may rely on the feature ID being unique.
 
 	constructor(options: VisualConstructorOptions) {
-		
-		let self = this
-		this.host = options.host;
+
+		//this.host = options.host;
 		this.target_element = options.element;
 		this.target_element.style.display = "grid";
 		this.target_element.style.height = "100%";
@@ -101,7 +99,7 @@ export class Visual implements IVisual {
 
 		// disable user selection of the visual
 		this.target_element.style.userSelect = "none";
-		
+
 		// version display
 		let version_display = document.createElement("div");
 		version_display.innerHTML = "v2021.03.25"
@@ -109,6 +107,7 @@ export class Visual implements IVisual {
 		var control_version_display = new Control({
 			element: version_display,
 		});
+
 		////////////////////////////////////////////////////////
 		// POPUP OVERLAY
 		////////////////////////////////////////////////////////
@@ -126,7 +125,7 @@ export class Visual implements IVisual {
 		popup_container.appendChild(popup_closer)
 		popup_content.innerHTML = "hehehe"
 
-		
+
 		popup_container.className = "ol-popup"
 		popup_closer.className = "ol-popup-closer"
 		var popup_overlay = new Overlay({
@@ -137,37 +136,8 @@ export class Visual implements IVisual {
 			},
 		});
 
-		////////////////////////////////////////////////////////
-		// MAP CONTORL
-		//
-		// TODO: Abstract style to css
-		////////////////////////////////////////////////////////
-		let control_container = document.createElement("div");
-		control_container.setAttribute("style", 'background-color:rgba(255,255,255,0.5);padding:3px;border:1px solid grey;width:auto;margin-left:60px;display:inline-block;');
-		this.ui_use_skyview_checkbox =  document.createElement("input");
-		this.ui_use_skyview_checkbox.setAttribute("type", "checkbox");
-		this.ui_use_skyview_checkbox.setAttribute("id", "mapshapenick-use-skyview-checkbox");
-		let ui_use_skyview_label = document.createElement("label");
-		ui_use_skyview_label.innerHTML = "use skyview";
-		ui_use_skyview_label.setAttribute("for", "mapshapenick-use-skyview-checkbox");
-		control_container.appendChild(ui_use_skyview_label);
-		control_container.appendChild(this.ui_use_skyview_checkbox);
 
-		var control_layer_switch = new Control({
-			element: control_container,
-		});
-
-		this.ui_use_skyview_checkbox.onchange = function (e: Event) {
-			let target = e.target as HTMLInputElement;
-			//console.log(target)
-			if (self.ui_use_skyview_checkbox.checked) {
-				map.removeLayer(self.layer_osm);
-				map.getLayers().insertAt(0, self.layer_metro_map);
-			} else {
-				map.removeLayer(self.layer_metro_map);
-				map.getLayers().insertAt(0, self.layer_osm);
-			}
-		}
+	
 
 		////////////////////////////////////////////////////////
 		// LAYER VECTOR GEOJSON
@@ -175,21 +145,21 @@ export class Visual implements IVisual {
 		// TODO: Select less awful colours
 		// TODO: Allow user to customise colours somehow
 		////////////////////////////////////////////////////////
-		this.layer_vector_geojson = new VectorLayer({
+		this.layer_visual_data = new VectorLayer({
 			source: new VectorSource(),
 			style: (feature, resolution) => {
-				
+
 				//const colors = [ "#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300", "#dc0ab4", "#b3d4ff", "#00bfa0", "#f0cccc" ];
 				// 
 				// https://learnui.design/tools/data-color-picker.html#palette ["#003f5c", "#58508d", "#bc5090", "#ff6361", "#ffa600"]
-				
+
 
 				// default colour:
 				let color = "red"
 
 				let feature_props = feature.getProperties();
-				
-				if(feature_props["__pbi_columns"]){
+
+				if (feature_props["__pbi_columns"]) {
 					let column_props = feature_props["__pbi_columns"];
 					for (let key in column_props) {
 						if (column_props[key].name && column_props[key].name.toUpperCase() == "YEAR") {
@@ -227,12 +197,12 @@ export class Visual implements IVisual {
 		////////////////////////////////////////////////////////
 		this.layer_osm = new TileLayer({ source: new OSM() })
 		this.layer_osm.on('prerender', function (event) {
-				event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)";
+			event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)";
 		});
 		this.layer_osm.on('postrender', function (event) {
 			event.context.filter = "none";
 		});
-		
+
 
 		////////////////////////////////////////////////////////
 		// LAYER IMAGERY
@@ -242,9 +212,9 @@ export class Visual implements IVisual {
 				url: SECRETS.MAP_SERVICE_URL,
 			})
 		});
-		
+
 		this.layer_metro_map.on('prerender', function (event) {
-				event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)";
+			event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)";
 		});
 		this.layer_metro_map.on('postrender', function (event) {
 			event.context.filter = "none";
@@ -272,7 +242,7 @@ export class Visual implements IVisual {
 		// MAP INTERACTION SELECT
 		////////////////////////////////////////////////////////
 		var select_interaction = new Select({
-			layers: [this.layer_vector_geojson],
+			layers: [this.layer_visual_data],
 			hitTolerance: 3
 		});
 
@@ -284,18 +254,18 @@ export class Visual implements IVisual {
 			//console.log("got prop", props)
 			let out = "";
 			let out_count = 0;
-			if(props["__pbi_columns"]){
+			if (props["__pbi_columns"]) {
 				for (let key in props["__pbi_columns"]) {
 					let val = props["__pbi_columns"][key];
 					// properties that represent columns are added as {name, value} objects.
-					if(!val["name"]) continue;
-					if(!val["value"]) continue;
+					if (!val["name"]) continue;
+					if (!val["value"]) continue;
 					out += "<tr><td>" + escapeHtml(val.name) + "</td><td>" + escapeHtml(String(val.value)) + "</td></tr>";
 					out_count++;
 				}
 			}
 			if (out_count === 0) {
-				popup_content.innerHTML = '<span style="color:grey;">No data in the \'Other Columns\' field-well</span>';
+				popup_content.innerHTML = '<span style="color:grey;">No data in the \'Popup Info\' field-well</span>';
 			} else {
 				popup_content.innerHTML = '<table><tbody>' + out + '</tbody></table>';
 			}
@@ -309,10 +279,10 @@ export class Visual implements IVisual {
 			target: this.map_target_div,
 			layers: [
 				this.layer_osm,
-				state_road_vector_layer_ticks, 
-				state_road_vector_layer,
-				other_road_vector_layer,
-				this.layer_vector_geojson
+				layer_state_road_ticks,
+				layer_state_road,
+				layer_other_roads,
+				this.layer_visual_data
 			],
 			overlays: [popup_overlay],
 			controls:
@@ -320,66 +290,107 @@ export class Visual implements IVisual {
 					zoom: true,
 					attribution: true,
 					rotate: true
-				}).extend([control_layer_switch, control_version_display])
+				}).extend([control_version_display])
 			,
 			view: this.mapview,
 			interactions: ol_interaction_defaults().extend([select_interaction])
 		});
 	}
 
-	
+	public set_map_background(bgname:string){
+		if (bgname=="Metromap") {
+			map.removeLayer(this.layer_osm);
+			try{
+				map.getLayers().insertAt(0, this.layer_metro_map);
+			}catch(e){}
+		} else if(bgname=="OSM"){
+			map.removeLayer(this.layer_metro_map);
+			try{
+				map.getLayers().insertAt(0, this.layer_osm);
+			}catch(e){}
+		}else{
+			console.warn("Invalid layer name recieved by Visual.set_map_background")
+		}
+	}
 
 	@logExceptions()
 	public update(options: VisualUpdateOptions) {
 		
+		this.properties_parser = PropertiesParser.parse<PropertiesParser>(options.dataViews[0]);
+
+		this.set_map_background(this.properties_parser.OtherMapSettings.background_layer)
+		layer_state_road_ticks.setVisible(this.properties_parser.StateRoadSettings.show && this.properties_parser.StateRoadSettings.show_slk_ticks);
+		layer_state_road.setVisible(this.properties_parser.StateRoadSettings.show && this.properties_parser.StateRoadSettings.show_state_roads);
+		layer_other_roads.setVisible(this.properties_parser.StateRoadSettings.show && this.properties_parser.StateRoadSettings.show_local_roads);
+		road_network_styles["State Road"].getStroke().setColor(this.properties_parser.StateRoadSettings.state_road_color);
+		road_network_styles["Proposed Road"].getStroke().setColor(this.properties_parser.StateRoadSettings.state_road_color);
+		road_network_styles["Local Road"].getStroke().setColor(this.properties_parser.StateRoadSettings.local_road_color);
+		road_network_styles["DEFAULT"].getStroke().setColor(this.properties_parser.StateRoadSettings.local_road_color);
+		road_network_styles["Main Roads Controlled Path"].getStroke().setColor(this.properties_parser.StateRoadSettings.psp_road_color);
+
 		////////////////////////////////////////////////////////
 		// REJECT CALLS TO UPDATE IF NOT FULLY CONSTRUCTED
 		// OR IF OPTIONS IS NOT POPULATED WITH A TABLE OF DATA 
 		////////////////////////////////////////////////////////
-		if (!(this.map_target_div && options && options.dataViews && options.dataViews.length!==0 && options.dataViews[0].table))
+		if (!(this.map_target_div && options && options.dataViews && options.dataViews.length !== 0 && options.dataViews[0].table))
 			return;
 
 		let data_view = options.dataViews[0]
 		//this.visual_settings = VisualSettings.parse<VisualSettings>(data_view);
+		
 
-		let GEOJSON_COLUMN_INDEX;
-		try{
-			GEOJSON_COLUMN_INDEX = get_table_column_index(data_view.table, "geojson_field")
-		}catch(e){
-			// TODO: this error indicates an error in the capabilities.json. Send to console.
-			//console.log(e)
-			return;
-		}
+		let GEOJSON_COLUMN_INDEX = data_view.table.columns.findIndex(column_desc => column_desc.roles["geojson_field"]);
+		let COLOUR_COLUMN_INDEX = data_view.table.columns.findIndex(column_desc => column_desc.roles["colour_column"]);
+		let LINE_WEIGHT_COLUMN_INDEX = data_view.table.columns.findIndex(column_desc => column_desc.roles["line_weight_column"]);
+
 
 		let json_row_Features = []
 
-		data_view.table.rows.forEach((item) => {
-			if (item[GEOJSON_COLUMN_INDEX] !== "") {
-				try {
-					let jsonparsed = JSON.parse(item[GEOJSON_COLUMN_INDEX] as string)
-					
-					// TODO: inject additional "properties" into each feature if required for styling?
-					let column_values: any = data_view.table.columns.reduce((accumulator, column_desc, column_index) => {
-						if (column_index == GEOJSON_COLUMN_INDEX) {
-							return accumulator
-						} else {
-							return { ...accumulator, ["column" + column_index]: { name: column_desc.displayName, value: item[column_index] } }
-						}
-					}, {})
-					// Duplicate feature but with new properties.
-					// Apparently the use of elipses to expand null or undefined values is permitted so there is no need to check.
-					jsonparsed = { ...jsonparsed, id:this.feature_id_counter++, properties: {...jsonparsed.properties, __pbi_columns:column_values}};
-					json_row_Features.push(jsonparsed)
+		// Loop over each data row and update the content of the map data_layer
+		data_view.table.rows.forEach((data_view_table_row) => {
+			debugger;
+			if (!data_view_table_row[GEOJSON_COLUMN_INDEX]) return; // TODO: what is the actual null value for item?.[GEOJSON_COLUMN_INDEX]?
+			
+			
+			
+			// TODO: inject additional "properties" into each feature if required for styling?
 
-
-
-				} catch (e) {
-					// TODO: notify user that JSON.parse() failed for some features.
-					//console.log(`json parse failed: tried to parse ${item[data_view.table.columns[GEOJSON_COLUMN_INDEX].displayName]} and got error ${e}`)
-				}
+			for (let key in data_view.table.columns){
+				let column = data_view.table.columns[key];
+				
 			}
+			
+
+
+			let geojson_column_value: any = data_view_table_row.find((value, index) => data_view.table.columns[index].roles["geojson_field"])
+			let other_column_values: any = data_view_table_row
+				.filter((value, index) => data_view.table.columns[index].roles["other_columns"])
+				.map((item,index)=>{return {index, name:data_view.table.columns[index].displayName, value:item}});
+			let colour_column_value: any = data_view_table_row.find((value, index) => data_view.table.columns[index].roles["colour_column"]);
+			let line_weight_column_value: any = data_view_table_row.find((value, index) => data_view.table.columns[index].roles["line_weight_column"]);
+			console.log(geojson_column_value,other_column_values,colour_column_value,line_weight_column_value)
+			
+
+			let jsonparsed;
+
+			try {
+				jsonparsed = JSON.parse(geojson_column_value as string)
+			} catch (e) {
+				// TODO: notify user that JSON.parse() failed for some features.
+				//console.log(`json parse failed: tried to parse ${item[data_view.table.columns[GEOJSON_COLUMN_INDEX].displayName]} and got error ${e}`)
+			}
+			
+			// Duplicate feature but with new properties.
+			// Apparently the use of elipses to expand null or undefined values is permitted so there is no need to check.
+			jsonparsed = { ...jsonparsed, id: this.feature_id_counter++, properties: { ...jsonparsed.properties, __pbi_columns: other_column_values } };
+			json_row_Features.push(jsonparsed)
+
+
+
+				
+			
 		})
-		if(json_row_Features.length===0){
+		if (json_row_Features.length === 0) {
 			// TODO: notify the user that no features were parsed
 			this.clearVectorLayers()
 			return
@@ -410,65 +421,31 @@ export class Visual implements IVisual {
 		let new_vector_source = new VectorSource({
 			features: parsed_features
 		})
-		
+
 		this.setVectorLayerSource(new_vector_source);
 
 		this.mapview.fit(new_vector_source.getExtent());
 
 	}
 
-	private clearVectorLayers(){
+	private clearVectorLayers() {
 		this.setVectorLayerSource(new VectorSource());
 	}
 
-	private setVectorLayerSource(new_vector_source:VectorSource<Geometry>){
-		this.layer_vector_geojson.setSource(new_vector_source);
+	private setVectorLayerSource(new_vector_source: VectorSource<Geometry>) {
+		this.layer_visual_data.setSource(new_vector_source);
 	}
 
-	// This function retruns the values to be displayed in the property pane for each object.
-	// Usually it is a bind pass of what the property pane gave you, but sometimes you may want to do
-	// validation and return other values/defaults
-	private settings = {
-		show_state_roads:{
-			value:true,
-			default:true
-		},
-		state_road_color:{
-			value:'rgb(50, 100, 100)',
-			default:'rgb(50, 100, 100)'
-		},
-		show_imagery:{
-			value:false,
-			default:false
-		}
-	}
-
-	public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): VisualObjectInstanceEnumeration {
-		let propertyGroupName = options.objectName;
-		let properties: VisualObjectInstance[] = [];
+	// I found this snippet on the internet to describe what enumerateObjectInstances does 
+	//     "This function returns the values to be displayed in the property pane for each object.
+	//     Usually it is a bind pass of what the property pane gave you
+	//     but sometimes you may want to do validation and return other values/defaults"
+	// I think by 'bind pass' this person meant that it sends the 'model' back out to the 'view']
 	
-		switch (propertyGroupName) {
-			case "StateRoadSettings":
-				properties.push({
-					objectName: propertyGroupName,
-					properties: {
-						show: true,
-					},
-					selector: null
-				});
-			break;
-		};
-		
-		return properties;
-	}
-	private updateSettings(options: VisualUpdateOptions) {
-		this.settings.show_state_roads.value = DataViewObjects.getValue(
-			options.dataViews[0].metadata.objects,
-			{
-				objectName: "xAxis",
-				propertyName: "show"
-			},
-			this.settings.show_state_roads.default
-		);
+	// Here we use the utilities provided in powerbi-visuals-utils-dataviewutils to simplify this task https://docs.microsoft.com/en-us/power-bi/developer/visuals/utils-dataview
+	//  this appears to be the idiomatic way of doing it, and hopefully good enough if we dont need fancy behaviour.
+	public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): VisualObjectInstanceEnumeration {
+		console.log(options.objectName);
+		return PropertiesParser.enumerateObjectInstances(this.properties_parser, options);
 	}
 }
