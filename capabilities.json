@@ -85,7 +85,7 @@
 	"dataRoles": [
 		{
 			"displayName": "GeoJson Feature",
-			"description": "Provide a single column of type text, where each row is a single valid GeoJSON Feature: {\"type\":\"Feature\", ...}. CRS is assumed to be EPSG:4326 aka WGS84",
+			"description": "Provide a single column of type text, where each row is a single valid GeoJSON Feature: {\"type\":\"Feature\", ...}. The CRS must be EPSG:4326 aka WGS84 (this is the only CRS permitted by the GeoJSON standard.)",
 			"name": "geojson_field",
 			"kind": "GroupingOrMeasure"
 		},
@@ -97,7 +97,7 @@
 		},
 		{
 			"displayName": "Colour",
-			"description": "Features will be coloured using this field. Any valid CSS colour strings is accepted.",
+			"description": "Features will be coloured using this field. Any valid CSS colour string is accepted.",
 			"name": "colour_column",
 			"kind": "GroupingOrMeasure",
 			"requiredTypes": [
@@ -113,10 +113,20 @@
 			"kind": "GroupingOrMeasure",
 			"requiredTypes": [
 				{
-					"text": true
+					"numeric": true
 				}
 			]
-		}
+		},
+        {
+            "displayName": "Point Diameter (px)",
+			"description": "Point features will use point diameter",
+			"name": "point_diameter_column",
+			"kind": "GroupingOrMeasure",
+			"requiredTypes": [
+				{
+					"numeric": true
+				}
+			]}
 	],
 	"dataViewMappings": [
 		{
@@ -133,21 +143,21 @@
 					"line_weight_column": {
 						"max": 1,
 						"min": 0
+					},
+					"point_diameter_column": {
+						"max": 1,
+						"min": 0
 					}
 				}
 			],
 			"table": {
 				"rows": {
 					"select": [
+                        {
+                            "for": {"in": "geojson_field"}
+                        },
 						{
-							"for": {
-								"in": "geojson_field"
-							}
-						},
-						{
-							"for": {
-								"in": "other_columns"
-							}
+							"for": {"in": "other_columns"}
 						},
 						{
 							"for": {
@@ -157,6 +167,11 @@
 						{
 							"for": {
 								"in": "line_weight_column"
+							}
+						},
+						{
+							"for": {
+								"in": "point_diameter_column"
 							}
 						}
 					],

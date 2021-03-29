@@ -20,6 +20,8 @@ export function escapeHtml(unsafe) {
 		.replace(/"/g, "&quot;")
 		.replace(/'/g, "&#039;");
 }
-export function compute_line_width(resolution) {
-	return Math.min(40, Math.max(5, 40 / resolution)) / 3;
+
+
+export function compute_line_width(resolution, desired_weight) {
+	return Math.min(100, Math.max(0.5, desired_weight * resolution));
 }

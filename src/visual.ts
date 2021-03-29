@@ -100,9 +100,11 @@ export class Visual implements IVisual {
 		// disable user selection of the visual
 		this.target_element.style.userSelect = "none";
 
-		// version display
+		////////////////////////////////////////////////////////
+		// VERSION DISPLAY
+		////////////////////////////////////////////////////////
 		let version_display = document.createElement("div");
-		version_display.innerHTML = "v2021.03.25"
+		version_display.innerHTML = "v2021.03.29 NickMap"
 		version_display.setAttribute("style", 'padding:2px;position:fixed;top:2px;right:10px;display:inline-block;font-size:80%;color:grey;');
 		var control_version_display = new Control({
 			element: version_display,
@@ -136,58 +138,24 @@ export class Visual implements IVisual {
 			},
 		});
 
-
-	
-
 		////////////////////////////////////////////////////////
-		// LAYER VECTOR GEOJSON
-		//
-		// TODO: Select less awful colours
-		// TODO: Allow user to customise colours somehow
+		// LAYER VISUAL DATA
 		////////////////////////////////////////////////////////
 		this.layer_visual_data = new VectorLayer({
 			source: new VectorSource(),
 			style: (feature, resolution) => {
 
-				//const colors = [ "#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300", "#dc0ab4", "#b3d4ff", "#00bfa0", "#f0cccc" ];
-				// 
-				// https://learnui.design/tools/data-color-picker.html#palette ["#003f5c", "#58508d", "#bc5090", "#ff6361", "#ffa600"]
-
-
-				// default colour:
-				let color = "red"
-
-				let feature_props = feature.getProperties();
-
-				if (feature_props["__pbi_columns"]) {
-					let column_props = feature_props["__pbi_columns"];
-					for (let key in column_props) {
-						if (column_props[key].name && column_props[key].name.toUpperCase() == "YEAR") {
-							let year = parseFloat(column_props[key].value);
-							if (year <= 2021) {
-								color = "#e6d800DD";
-							} else if (year <= 2026) {
-								color = "#e60049DD";
-							} else if (year <= 2031) {
-								color = "#50e991DD";
-							} else if (year <= 2036) {
-								color = "#9b19f5DD";
-							} else if (year <= 2041) {
-								color = "#0bb4ffDD";
-							}
-						}
-					}
-				}
+				let color = feature.get("__color_column");
+				let line_weight = compute_line_width(resolution,feature.get("__line_weight"));
+				let radius = feature.get("__point_diameter");
+				let stroke = new Stroke({
+					color,
+					width: line_weight,
+				}); 
 
 				return new Style({
-					stroke: new Stroke({
-						color: color,
-						width: compute_line_width(resolution),
-					}),
-					image: new Circle({
-						radius: 8,
-						stroke: new Stroke({ color: color, width: compute_line_width(resolution) }),
-					}),
+					stroke,
+					image: new Circle({radius,stroke}),
 				});
 			}
 		});
@@ -337,61 +305,57 @@ export class Visual implements IVisual {
 
 		let data_view = options.dataViews[0]
 		//this.visual_settings = VisualSettings.parse<VisualSettings>(data_view);
+
+		// typescript wont let me use flatMap :(
+		let roles: Set<string> = new Set();
+		for(let item of data_view.table.columns){
+			for(let role of Object.keys(item.roles)){
+				roles.add(role);
+			}
+		}
 		
-
-		let GEOJSON_COLUMN_INDEX = data_view.table.columns.findIndex(column_desc => column_desc.roles["geojson_field"]);
-		let COLOUR_COLUMN_INDEX = data_view.table.columns.findIndex(column_desc => column_desc.roles["colour_column"]);
-		let LINE_WEIGHT_COLUMN_INDEX = data_view.table.columns.findIndex(column_desc => column_desc.roles["line_weight_column"]);
-
+		let column_display_names = {};
+		for (let role of roles){
+			column_display_names[role] = data_view.table.columns.filter((item,index)=>item.roles[role]).map(item=>item.displayName);
+		}
 
 		let json_row_Features = []
 
 		// Loop over each data row and update the content of the map data_layer
-		data_view.table.rows.forEach((data_view_table_row) => {
-			debugger;
-			if (!data_view_table_row[GEOJSON_COLUMN_INDEX]) return; // TODO: what is the actual null value for item?.[GEOJSON_COLUMN_INDEX]?
+		data_view.table.rows.forEach(data_view_table_row => {
 			
+			let row_values = {};
 			
-			
-			// TODO: inject additional "properties" into each feature if required for styling?
-
-			for (let key in data_view.table.columns){
-				let column = data_view.table.columns[key];
-				
+			for (let role of roles){
+				row_values[role] = data_view_table_row.filter((item,index)=>data_view.table.columns[index].roles[role]);
 			}
 			
-
-
-			let geojson_column_value: any = data_view_table_row.find((value, index) => data_view.table.columns[index].roles["geojson_field"])
-			let other_column_values: any = data_view_table_row
-				.filter((value, index) => data_view.table.columns[index].roles["other_columns"])
-				.map((item,index)=>{return {index, name:data_view.table.columns[index].displayName, value:item}});
-			let colour_column_value: any = data_view_table_row.find((value, index) => data_view.table.columns[index].roles["colour_column"]);
-			let line_weight_column_value: any = data_view_table_row.find((value, index) => data_view.table.columns[index].roles["line_weight_column"]);
-			console.log(geojson_column_value,other_column_values,colour_column_value,line_weight_column_value)
-			
-
 			let jsonparsed;
 
 			try {
-				jsonparsed = JSON.parse(geojson_column_value as string)
+				jsonparsed = JSON.parse(row_values["geojson_field"][0] as string)
 			} catch (e) {
-				// TODO: notify user that JSON.parse() failed for some features.
-				//console.log(`json parse failed: tried to parse ${item[data_view.table.columns[GEOJSON_COLUMN_INDEX].displayName]} and got error ${e}`)
+				return; // TODO: try notify user of fail.
 			}
-			
-			// Duplicate feature but with new properties.
-			// Apparently the use of elipses to expand null or undefined values is permitted so there is no need to check.
-			jsonparsed = { ...jsonparsed, id: this.feature_id_counter++, properties: { ...jsonparsed.properties, __pbi_columns: other_column_values } };
+
+			jsonparsed = {
+				...jsonparsed,
+				id: this.feature_id_counter++,
+				properties: {
+					//...jsonparsed.properties,
+					__other_columns: row_values?.["other_columns"].map((item,index)=>{
+						return {display_name:column_display_names["other_columns"][index], value:item}
+					}),
+					__color: row_values?.["colour_column"]?.[0] ?? "#FF0000",
+					__line_weight: row_values?.["line_weight_column"]?.[0] ?? 1,
+					__point_diameter: row_values?.["point_diameter_column"]?.[0] ?? 1,
+				}
+			};
+			debugger;
 			json_row_Features.push(jsonparsed)
-
-
-
-				
-			
 		})
+
 		if (json_row_Features.length === 0) {
-			// TODO: notify the user that no features were parsed
 			this.clearVectorLayers()
 			return
 		}
