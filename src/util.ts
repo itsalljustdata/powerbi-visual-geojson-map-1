@@ -22,6 +22,7 @@ export function escapeHtml(unsafe) {
 }
 
 
-export function compute_line_width(resolution, desired_weight) {
-	return Math.min(100, Math.max(0.5, desired_weight * resolution));
+export function compute_line_width(resolution_px_per_m, desired_weight_px) {
+    // at roughly 3 px per meter we want to display the desired weight at a 1:1 ratio
+	return Math.min(60, Math.max(1, desired_weight_px * Math.exp(-(resolution_px_per_m-4))));
 }

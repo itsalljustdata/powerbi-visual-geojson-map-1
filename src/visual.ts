@@ -84,6 +84,8 @@ export class Visual implements IVisual {
 	private layer_metro_map: TileLayer;
 	private layer_osm: TileLayer;
 
+	private raster_layer_filter_string:string = "grayscale(80%) contrast(0.8) brightness(1.2)";
+
 
 	private properties_parser: PropertiesParser;
 
@@ -123,9 +125,8 @@ export class Visual implements IVisual {
 			return false;
 		};
 
-		popup_container.appendChild(popup_content)
-		popup_container.appendChild(popup_closer)
-		popup_content.innerHTML = "hehehe"
+		popup_container.appendChild(popup_content);
+		popup_container.appendChild(popup_closer);
 
 
 		popup_container.className = "ol-popup"
@@ -145,8 +146,8 @@ export class Visual implements IVisual {
 			source: new VectorSource(),
 			style: (feature, resolution) => {
 
-				let color = feature.get("__color_column");
-				let line_weight = compute_line_width(resolution,feature.get("__line_weight"));
+				let color = feature.get("__color");
+				let line_weight = feature.get("__line_weight")*2;//compute_line_width(resolution,feature.get("__line_weight"));
 				let radius = feature.get("__point_diameter");
 				let stroke = new Stroke({
 					color,
@@ -164,8 +165,8 @@ export class Visual implements IVisual {
 		// LAYER OPEN STREET MAPS
 		////////////////////////////////////////////////////////
 		this.layer_osm = new TileLayer({ source: new OSM() })
-		this.layer_osm.on('prerender', function (event) {
-			event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)";
+		this.layer_osm.on('prerender', event => {
+			event.context.filter = this.raster_layer_filter_string;
 		});
 		this.layer_osm.on('postrender', function (event) {
 			event.context.filter = "none";
@@ -181,8 +182,8 @@ export class Visual implements IVisual {
 			})
 		});
 
-		this.layer_metro_map.on('prerender', function (event) {
-			event.context.filter = "grayscale(80%) contrast(0.8) brightness(1.2)";
+		this.layer_metro_map.on('prerender', event => {
+			event.context.filter = this.raster_layer_filter_string;
 		});
 		this.layer_metro_map.on('postrender', function (event) {
 			event.context.filter = "none";
@@ -217,25 +218,26 @@ export class Visual implements IVisual {
 		select_interaction.on('select', evt => {
 			//console.log("selected")
 			if (evt.selected.length < 1) return;
-			debugger
-			let props = evt.selected[0].getProperties();
+			let vals = evt.selected?.[0]?.get("__other_columns") ?? [];
 			//console.log("got prop", props)
 			let out = "";
 			let out_count = 0;
-			if (props["__pbi_columns"]) {
-				for (let key in props["__pbi_columns"]) {
-					let val = props["__pbi_columns"][key];
-					// properties that represent columns are added as {name, value} objects.
-					if (!val["name"]) continue;
-					if (!val["value"]) continue;
-					out += "<tr><td>" + escapeHtml(val.name) + "</td><td>" + escapeHtml(String(val.value)) + "</td></tr>";
-					out_count++;
-				}
+			let prop_count = 0;
+			for (let key in vals) {
+				let val = vals[key];
+				// properties that represent columns are added as {name, value} objects.
+				prop_count++;
+				if (!val.display_name) continue;
+				if (!val.value) continue;
+				out += "<tr><td>" + escapeHtml(val.display_name) + "</td><td>" + escapeHtml(String(val.value)) + "</td></tr>";
+				out_count++;
 			}
-			if (out_count === 0) {
+			if (prop_count==0) {
 				popup_content.innerHTML = '<span style="color:grey;">No data in the \'Popup Info\' field-well</span>';
-			} else {
-				popup_content.innerHTML = '<table><tbody>' + out + '</tbody></table>';
+			} else if(out_count==0) {
+				popup_content.innerHTML = '<span style="color:grey;">None of the fields in the \'Popup Info\' field well could be displayed. This can happen when fields are "summarised".</span>';
+			}else{
+				popup_content.innerHTML = '<table><tbody>' + out + '</tbody></table>' + ((out_count!==prop_count)? " not all properties could be displayed.":"");
 			}
 			popup_overlay.setPosition(evt.mapBrowserEvent.coordinate);
 		})
@@ -284,7 +286,19 @@ export class Visual implements IVisual {
 	@logExceptions()
 	public update(options: VisualUpdateOptions) {
 		
-		this.properties_parser = PropertiesParser.parse<PropertiesParser>(options.dataViews[0]);
+
+		////////////////////////////////////////////////////////
+		// REJECT CALLS TO UPDATE IF NOT FULLY CONSTRUCTED
+		// OR IF OPTIONS IS NOT POPULATED WITH A TABLE OF DATA 
+		////////////////////////////////////////////////////////
+		if (!(this.map_target_div && options?.dataViews?.[0]?.table)) return;
+		
+		let data_view = options.dataViews[0]
+
+		this.properties_parser = PropertiesParser.parse<PropertiesParser>(data_view);
+
+		//grayscale(80%) contrast(0.8) brightness(1.2)
+		this.raster_layer_filter_string = `invert(${this.properties_parser.OtherMapSettings.background_invert}%) grayscale(${this.properties_parser.OtherMapSettings.background_greyscale}%) contrast(${this.properties_parser.OtherMapSettings.background_contrast}%) brightness(${this.properties_parser.OtherMapSettings.background_brightness}%)`;
 
 		this.set_map_background(this.properties_parser.OtherMapSettings.background_layer)
 		layer_state_road_ticks.setVisible(this.properties_parser.StateRoadSettings.show && this.properties_parser.StateRoadSettings.show_slk_ticks);
@@ -296,14 +310,11 @@ export class Visual implements IVisual {
 		road_network_styles["DEFAULT"].getStroke().setColor(this.properties_parser.StateRoadSettings.local_road_color);
 		road_network_styles["Main Roads Controlled Path"].getStroke().setColor(this.properties_parser.StateRoadSettings.psp_road_color);
 
-		////////////////////////////////////////////////////////
-		// REJECT CALLS TO UPDATE IF NOT FULLY CONSTRUCTED
-		// OR IF OPTIONS IS NOT POPULATED WITH A TABLE OF DATA 
-		////////////////////////////////////////////////////////
-		if (!(this.map_target_div && options && options.dataViews && options.dataViews.length !== 0 && options.dataViews[0].table))
-			return;
 
-		let data_view = options.dataViews[0]
+
+		
+
+		
 		//this.visual_settings = VisualSettings.parse<VisualSettings>(data_view);
 
 		// typescript wont let me use flatMap :(
@@ -329,7 +340,7 @@ export class Visual implements IVisual {
 			for (let role of roles){
 				row_values[role] = data_view_table_row.filter((item,index)=>data_view.table.columns[index].roles[role]);
 			}
-			
+			console.log(row_values);
 			let jsonparsed;
 
 			try {
@@ -343,15 +354,18 @@ export class Visual implements IVisual {
 				id: this.feature_id_counter++,
 				properties: {
 					//...jsonparsed.properties,
-					__other_columns: row_values?.["other_columns"].map((item,index)=>{
-						return {display_name:column_display_names["other_columns"][index], value:item}
-					}),
+					__other_columns: row_values?.["other_columns"]?.map((item, index)=>{
+						
+						return {
+							display_name:column_display_names["other_columns"][index],
+							value:item
+						}
+					}) ?? [],
 					__color: row_values?.["colour_column"]?.[0] ?? "#FF0000",
 					__line_weight: row_values?.["line_weight_column"]?.[0] ?? 1,
-					__point_diameter: row_values?.["point_diameter_column"]?.[0] ?? 1,
+					__point_diameter: row_values?.["point_diameter_column"]?.[0] ?? 5,
 				}
 			};
-			debugger;
 			json_row_Features.push(jsonparsed)
 		})
 
@@ -388,7 +402,9 @@ export class Visual implements IVisual {
 
 		this.setVectorLayerSource(new_vector_source);
 
-		this.mapview.fit(new_vector_source.getExtent());
+		if(this.properties_parser.OtherMapSettings.zoom_to_fit_on_update === true){
+			this.mapview.fit(new_vector_source.getExtent());
+		}
 
 	}
 
@@ -408,8 +424,8 @@ export class Visual implements IVisual {
 	
 	// Here we use the utilities provided in powerbi-visuals-utils-dataviewutils to simplify this task https://docs.microsoft.com/en-us/power-bi/developer/visuals/utils-dataview
 	//  this appears to be the idiomatic way of doing it, and hopefully good enough if we dont need fancy behaviour.
+
 	public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): VisualObjectInstanceEnumeration {
-		console.log(options.objectName);
-		return PropertiesParser.enumerateObjectInstances(this.properties_parser, options);
+		return PropertiesParser.enumerateObjectInstances(this.properties_parser || PropertiesParser.getDefault(), options);
 	}
 }

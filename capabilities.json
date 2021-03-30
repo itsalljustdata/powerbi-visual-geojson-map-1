@@ -62,10 +62,10 @@
 			}
 		},
 		"OtherMapSettings":{
-			"displayName": "😎 NickMap",
+			"displayName": "😎 Background",
 			"properties": {
 				"background_layer": {
-					"displayName": "Map Background Image",
+					"displayName": "Imagery Layer",
 					"type": {
 						"enumeration": [
 							{
@@ -78,6 +78,27 @@
 							}
 						]
 					}
+				},
+				"background_invert":{
+					"displayName": "Invert (%)",
+					"type": {"numeric": true}
+				},
+				"background_greyscale":{
+					"displayName": "Greyscale (%)",
+					"type": {"numeric": true}
+				},
+				"background_brightness":{
+					"displayName": "Brightness (%)",
+					"type": {"numeric": true}
+				},
+				"background_contrast":{
+					"displayName": "Contrast (%)",
+					"type": {"numeric": true}
+				},
+				"zoom_to_fit_on_update":{
+					"displayName": "Auto zoom to fit",
+					"description": "Enable this option to automatically zoom to fit selected data whenever the map updates.",
+					"type": {"bool": true}
 				}
 			}
 		}
@@ -87,19 +108,24 @@
 			"displayName": "GeoJson Feature",
 			"description": "Provide a single column of type text, where each row is a single valid GeoJSON Feature: {\"type\":\"Feature\", ...}. The CRS must be EPSG:4326 aka WGS84 (this is the only CRS permitted by the GeoJSON standard.)",
 			"name": "geojson_field",
-			"kind": "GroupingOrMeasure"
+			"kind": "Grouping"
 		},
 		{
 			"displayName": "Popup Info",
 			"description": "When map features are clicked a popup will show the data in the following columns.",
 			"name": "other_columns",
-			"kind": "GroupingOrMeasure"
+			"kind": "Measure",
+			"preferredTypes": [
+				{
+					"text": true
+				}
+			]
 		},
 		{
 			"displayName": "Colour",
 			"description": "Features will be coloured using this field. Any valid CSS colour string is accepted.",
 			"name": "colour_column",
-			"kind": "GroupingOrMeasure",
+			"kind": "Measure",
 			"requiredTypes": [
 				{
 					"text": true
@@ -110,18 +136,18 @@
 			"displayName": "Line Weight (px)",
 			"description": "LineString features will use this line weight",
 			"name": "line_weight_column",
-			"kind": "GroupingOrMeasure",
+			"kind": "Measure",
 			"requiredTypes": [
 				{
 					"numeric": true
 				}
 			]
 		},
-        {
-            "displayName": "Point Diameter (px)",
+		{
+			"displayName": "Point Diameter (px)",
 			"description": "Point features will use point diameter",
 			"name": "point_diameter_column",
-			"kind": "GroupingOrMeasure",
+			"kind": "Measure",
 			"requiredTypes": [
 				{
 					"numeric": true
@@ -153,26 +179,20 @@
 			"table": {
 				"rows": {
 					"select": [
-                        {
-                            "for": {"in": "geojson_field"}
-                        },
+						{
+							"for": {"in": "geojson_field"}
+						},
 						{
 							"for": {"in": "other_columns"}
 						},
 						{
-							"for": {
-								"in": "colour_column"
-							}
+							"for": {"in": "colour_column"}
 						},
 						{
-							"for": {
-								"in": "line_weight_column"
-							}
+							"for": {"in": "line_weight_column"}
 						},
 						{
-							"for": {
-								"in": "point_diameter_column"
-							}
+							"for": {"in": "point_diameter_column"}
 						}
 					],
 					"dataReductionAlgorithm": {
