@@ -96,7 +96,7 @@
 					"type": {"numeric": true}
 				},
 				"zoom_to_fit_on_update":{
-					"displayName": "Auto zoom to fit",
+					"displayName": "Auto zoom/fit on update",
 					"description": "Enable this option to automatically zoom to fit selected data whenever the map updates.",
 					"type": {"bool": true}
 				}
@@ -114,7 +114,7 @@
 			"displayName": "Popup Info",
 			"description": "When map features are clicked a popup will show the data in the following columns.",
 			"name": "other_columns",
-			"kind": "Measure",
+			"kind": "Grouping",
 			"preferredTypes": [
 				{
 					"text": true
@@ -125,7 +125,7 @@
 			"displayName": "Colour",
 			"description": "Features will be coloured using this field. Any valid CSS colour string is accepted.",
 			"name": "colour_column",
-			"kind": "Measure",
+			"kind": "Grouping",
 			"requiredTypes": [
 				{
 					"text": true
@@ -136,7 +136,7 @@
 			"displayName": "Line Weight (px)",
 			"description": "LineString features will use this line weight",
 			"name": "line_weight_column",
-			"kind": "Measure",
+			"kind": "Grouping",
 			"requiredTypes": [
 				{
 					"numeric": true
@@ -147,7 +147,7 @@
 			"displayName": "Point Diameter (px)",
 			"description": "Point features will use point diameter",
 			"name": "point_diameter_column",
-			"kind": "Measure",
+			"kind": "Grouping",
 			"requiredTypes": [
 				{
 					"numeric": true
@@ -176,30 +176,23 @@
 					}
 				}
 			],
-			"table": {
-				"rows": {
+			"categorical": {
+				"categories": {
 					"select": [
-						{
-							"for": {"in": "geojson_field"}
-						},
-						{
-							"for": {"in": "other_columns"}
-						},
-						{
-							"for": {"in": "colour_column"}
-						},
-						{
-							"for": {"in": "line_weight_column"}
-						},
-						{
-							"for": {"in": "point_diameter_column"}
-						}
+						{"bind": {"to": "geojson_field"}},
+						{"for": {"in": "other_columns"}},
+						{"bind": {"to": "colour_column"}},
+						{"bind": {"to": "line_weight_column"}},
+						{"bind": {"to": "point_diameter_column"}}
 					],
 					"dataReductionAlgorithm": {
-						"top": {
-							"count": 30000
-						}
+						"top": {"count": 30000}
 					}
+				},
+				"values": {
+					"select": [
+						
+					]
 				}
 			}
 		}

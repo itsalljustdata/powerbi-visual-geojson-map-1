@@ -45,7 +45,7 @@ import VisualObjectInstanceEnumeration = powerbi.VisualObjectInstanceEnumeration
 import { PropertiesParser } from "./PropertiesParser";
 
 import 'ol/ol.css';
-import { Map, View } from 'ol';
+import { Map as OpenLayersMap, View } from 'ol';
 import TileLayer from 'ol/layer/Tile';
 import OSM from 'ol/source/OSM';
 import XYZ from 'ol/source/XYZ';
@@ -69,7 +69,7 @@ import * as SECRETS from "./.secrets.json";
 
 import { layer_state_road_ticks, layer_state_road, layer_other_roads, road_network_styles } from './nickmap/layer_road_network';
 
-export let map: Map;
+export let map: OpenLayersMap;
 
 
 export class Visual implements IVisual {
@@ -92,7 +92,7 @@ export class Visual implements IVisual {
 	private feature_id_counter = 0; // IDs must be manually added to ensure that certain open layers features work as expected. The selection interaction for example may rely on the feature ID being unique.
 
 	constructor(options: VisualConstructorOptions) {
-
+		
 		//this.host = options.host;
 		this.target_element = options.element;
 		this.target_element.style.display = "grid";
@@ -106,7 +106,7 @@ export class Visual implements IVisual {
 		// VERSION DISPLAY
 		////////////////////////////////////////////////////////
 		let version_display = document.createElement("div");
-		version_display.innerHTML = "v2021.03.29 NickMap"
+		version_display.innerHTML = "v2021.03.31 NickMap"
 		version_display.setAttribute("style", 'padding:2px;position:fixed;top:2px;right:10px;display:inline-block;font-size:80%;color:grey;');
 		var control_version_display = new Control({
 			element: version_display,
@@ -245,7 +245,7 @@ export class Visual implements IVisual {
 		////////////////////////////////////////////////////////
 		// MAP 
 		////////////////////////////////////////////////////////
-		map = new Map({
+		map = new OpenLayersMap({
 			target: this.map_target_div,
 			layers: [
 				this.layer_osm,
@@ -286,13 +286,14 @@ export class Visual implements IVisual {
 	@logExceptions()
 	public update(options: VisualUpdateOptions) {
 		
-
+		
 		////////////////////////////////////////////////////////
 		// REJECT CALLS TO UPDATE IF NOT FULLY CONSTRUCTED
 		// OR IF OPTIONS IS NOT POPULATED WITH A TABLE OF DATA 
 		////////////////////////////////////////////////////////
-		if (!(this.map_target_div && options?.dataViews?.[0]?.table)) return;
+		if (!(this.map_target_div && options?.dataViews?.[0]?.categorical)) return;
 		
+
 		let data_view = options.dataViews[0]
 
 		this.properties_parser = PropertiesParser.parse<PropertiesParser>(data_view);
@@ -311,40 +312,63 @@ export class Visual implements IVisual {
 		road_network_styles["Main Roads Controlled Path"].getStroke().setColor(this.properties_parser.StateRoadSettings.psp_road_color);
 
 
-
-		
-
-		
-		//this.visual_settings = VisualSettings.parse<VisualSettings>(data_view);
-
 		// typescript wont let me use flatMap :(
 		let roles: Set<string> = new Set();
-		for(let item of data_view.table.columns){
+		for(let item of data_view.metadata.columns){
 			for(let role of Object.keys(item.roles)){
 				roles.add(role);
 			}
 		}
-		
-		let column_display_names = {};
-		for (let role of roles){
-			column_display_names[role] = data_view.table.columns.filter((item,index)=>item.roles[role]).map(item=>item.displayName);
+
+		// Bailout if we have no geometry to draw
+		if (!roles.has("geojson_field")){
+			return;
 		}
+
+		// PREPARE TO HAVE YOUR MIND MELTED
+		// BY POWERBI's ULTRA CONVOLUTED DATASTRUCTURES
+
+		// maps "role" to a map which maps "categories index" to "column display name"
+		let role_category_index:Map<string, {index:number, display_name:string, category:powerbi.DataViewCategoryColumn}[]> = new Map();
+		for (let role of roles){
+			let interm:Map<string, number> = data_view.categorical.categories.reduce((accumulator, item, index)=>{
+				if(role in item.source.roles){
+					accumulator.set(item.source.displayName, index);
+				}
+				return accumulator;
+			},new Map());
+			// reverse the mapping again
+			let res:{index:number, display_name:string, category:powerbi.DataViewCategoryColumn}[] = [];
+			for(let [display_name, index] of interm){
+				res.push({
+					index,
+					display_name,
+					category:data_view.categorical.categories[index]
+				});
+			}
+			role_category_index.set(role, res);
+		}
+
+		
 
 		let json_row_Features = []
 
-		// Loop over each data row and update the content of the map data_layer
-		data_view.table.rows.forEach(data_view_table_row => {
+		for(let row_index=0;row_index<role_category_index.get("geojson_field")[0].category.values.length;row_index++){
+
+			let row_values:{[key:string]:{display_name:string, value:any}[]} = {};
 			
-			let row_values = {};
-			
-			for (let role of roles){
-				row_values[role] = data_view_table_row.filter((item,index)=>data_view.table.columns[index].roles[role]);
+			// TODO: We have made the assumption that the values in each data_vire.categorical.categories[...].values corespond with eachother.
+			// if this is wrong then i am fed up. Seriously powerBI makes this way too flipping hard.
+
+
+			for (let [role, category_array] of role_category_index){
+				row_values[role] = category_array.map(({display_name, category})=>({display_name, value:category.values[row_index]}));
 			}
-			console.log(row_values);
+			debugger
 			let jsonparsed;
 
 			try {
-				jsonparsed = JSON.parse(row_values["geojson_field"][0] as string)
+				jsonparsed = JSON.parse(row_values["geojson_field"][0].value as string)
 			} catch (e) {
 				return; // TODO: try notify user of fail.
 			}
@@ -354,20 +378,17 @@ export class Visual implements IVisual {
 				id: this.feature_id_counter++,
 				properties: {
 					//...jsonparsed.properties,
-					__other_columns: row_values?.["other_columns"]?.map((item, index)=>{
-						
-						return {
-							display_name:column_display_names["other_columns"][index],
-							value:item
-						}
-					}) ?? [],
-					__color: row_values?.["colour_column"]?.[0] ?? "#FF0000",
-					__line_weight: row_values?.["line_weight_column"]?.[0] ?? 1,
-					__point_diameter: row_values?.["point_diameter_column"]?.[0] ?? 5,
+					__other_columns: row_values?.["other_columns"]?.map(({display_name, value}, index)=>({
+						display_name:display_name,
+						value:value
+					})) ?? [],
+					__color: row_values?.["colour_column"]?.[0].value ?? "#FF0000",
+					__line_weight: row_values?.["line_weight_column"]?.[0].value ?? 1,
+					__point_diameter: row_values?.["point_diameter_column"]?.[0].value ?? 5,
 				}
 			};
 			json_row_Features.push(jsonparsed)
-		})
+		}
 
 		if (json_row_Features.length === 0) {
 			this.clearVectorLayers()
