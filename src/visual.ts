@@ -285,7 +285,9 @@ export class Visual implements IVisual {
 
 	@logExceptions()
 	public update(options: VisualUpdateOptions) {
-		
+
+        // Only update when the data changes... ignore 'resize' 'viewmode' 'style' etc.
+		if(options.type!= powerbi.VisualUpdateType.Data) return;
 		
 		////////////////////////////////////////////////////////
 		// REJECT CALLS TO UPDATE IF NOT FULLY CONSTRUCTED
@@ -326,7 +328,7 @@ export class Visual implements IVisual {
 		}
 
 		// PREPARE TO HAVE YOUR MIND MELTED
-		// BY POWERBI's ULTRA CONVOLUTED DATASTRUCTURES
+		// BY PowerBI's ULTRA CONVOLUTED DATA STRUCTURES
 
 		// maps "role" to a map which maps "categories index" to "column display name"
 		let role_category_index:Map<string, {index:number, display_name:string, category:powerbi.DataViewCategoryColumn}[]> = new Map();
@@ -357,7 +359,7 @@ export class Visual implements IVisual {
 
 			let row_values:{[key:string]:{display_name:string, value:any}[]} = {};
 			
-			// TODO: We have made the assumption that the values in each data_vire.categorical.categories[...].values corespond with eachother.
+			// TODO: We have made the assumption that the values in each data_view.categorical.categories[...].values correspond with each other.
 			// if this is wrong then i am fed up. Seriously powerBI makes this way too flipping hard.
 
 
@@ -365,19 +367,19 @@ export class Visual implements IVisual {
 				row_values[role] = category_array.map(({display_name, category})=>({display_name, value:category.values[row_index]}));
 			}
 			debugger
-			let jsonparsed;
+			let json_parsed;
 
 			try {
-				jsonparsed = JSON.parse(row_values["geojson_field"][0].value as string)
+				json_parsed = JSON.parse(row_values["geojson_field"][0].value as string)
 			} catch (e) {
 				return; // TODO: try notify user of fail.
 			}
 
-			jsonparsed = {
-				...jsonparsed,
+			json_parsed = {
+				...json_parsed,
 				id: this.feature_id_counter++,
 				properties: {
-					//...jsonparsed.properties,
+					//...json_parsed.properties,
 					__other_columns: row_values?.["other_columns"]?.map(({display_name, value}, index)=>({
 						display_name:display_name,
 						value:value
@@ -387,7 +389,7 @@ export class Visual implements IVisual {
 					__point_diameter: row_values?.["point_diameter_column"]?.[0].value ?? 5,
 				}
 			};
-			json_row_Features.push(jsonparsed)
+			json_row_Features.push(json_parsed)
 		}
 
 		if (json_row_Features.length === 0) {
@@ -397,7 +399,7 @@ export class Visual implements IVisual {
 
 		let parsed_features = [];
 		try {
-			// Because the GeoJSON object is not connected to the map, it doesnt know the projection we are using
+			// Because the GeoJSON object is not connected to the map, it doesn't know the projection we are using
 			// therefore we need to tell it.
 			let featureProjection = this.mapview.getProjection()
 			let dataProjection = new GeoJSON().readProjection({ "crs": { "type": "EPSG", "properties": { "code": 4326 } } })
@@ -407,7 +409,7 @@ export class Visual implements IVisual {
 			});
 		} catch (e) {
 			// TODO: notify user that readFeatures failed.
-			//console.log("Error: While all GeoJSON text was successfully parsed into JSON, OpenLayers was unabled to parse the resulting JSON: new ol.GeoJSON().readFeatures(...) failed. Is the input data valid GeoJSON with coordinates in EPSG:4326 ?")
+			//console.log("Error: While all GeoJSON text was successfully parsed into JSON, OpenLayers was unable to parse the resulting JSON: new ol.GeoJSON().readFeatures(...) failed. Is the input data valid GeoJSON with coordinates in EPSG:4326 ?")
 			this.clearVectorLayers()
 			return
 		}
@@ -444,7 +446,7 @@ export class Visual implements IVisual {
 	// I think by 'bind pass' this person meant that it sends the 'model' back out to the 'view']
 	
 	// Here we use the utilities provided in powerbi-visuals-utils-dataviewutils to simplify this task https://docs.microsoft.com/en-us/power-bi/developer/visuals/utils-dataview
-	//  this appears to be the idiomatic way of doing it, and hopefully good enough if we dont need fancy behaviour.
+	//  this appears to be the idiomatic way of doing it, and hopefully good enough if we don't need fancy behaviour.
 
 	public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): VisualObjectInstanceEnumeration {
 		return PropertiesParser.enumerateObjectInstances(this.properties_parser || PropertiesParser.getDefault(), options);
