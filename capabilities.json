@@ -105,11 +105,36 @@
 	},
 	"dataRoles": [
 		{
-			"displayName": "GeoJson Feature",
-			"description": "Provide a single column of type text, where each row is a single valid GeoJSON Feature: {\"type\":\"Feature\", ...}. The CRS must be EPSG:4326 aka WGS84 (this is the only CRS permitted by the GeoJSON standard.)",
-			"name": "geojson_field",
+			"displayName": "Road Number",
+			"description": "Road number eg 'H001'",
+			"name": "road_column",
 			"kind": "Grouping"
 		},
+		{
+			"displayName": "SLK From",
+			"description": "SLK in km where the feature starts",
+			"name": "slk_from_column",
+			"kind": "Grouping"
+		},
+		{
+			"displayName": "SLK To",
+			"description": "SLK in km where the feature ends",
+			"name": "slk_to_column",
+			"kind": "Grouping"
+		},
+		{
+			"displayName": "Offset",
+			"description": "Offset",
+			"name": "offset_column",
+			"kind": "Grouping"
+		},
+		{
+			"displayName": "Cwy",
+			"description": "Cwy",
+			"name": "cwy_column",
+			"kind": "Grouping"
+		},
+		
 		{
 			"displayName": "Popup Info",
 			"description": "When map features are clicked a popup will show the data in the following columns.",
@@ -158,10 +183,7 @@
 		{
 			"conditions": [
 				{
-					"geojson_field": {
-						"max": 1,
-						"min": 1
-					},
+					
 					"colour_column": {
 						"max": 1,
 						"min": 0
@@ -179,8 +201,13 @@
 			"categorical": {
 				"categories": {
 					"select": [
-						{"bind": {"to": "geojson_field"}},
-						{"for": {"in": "other_columns"}},
+						{"bind": {"to": "road_column"}},
+						{"bind": {"to": "slk_from_column"}},
+						{"bind": {"to": "slk_to_column"}},
+						{"bind": {"to": "offset_column"}},
+						{"bind": {"to": "cwy_column"}},
+
+						{"for":  {"in": "other_columns"}},
 						{"bind": {"to": "colour_column"}},
 						{"bind": {"to": "line_weight_column"}},
 						{"bind": {"to": "point_diameter_column"}}
@@ -188,11 +215,6 @@
 					"dataReductionAlgorithm": {
 						"top": {"count": 30000}
 					}
-				},
-				"values": {
-					"select": [
-						
-					]
 				}
 			}
 		}

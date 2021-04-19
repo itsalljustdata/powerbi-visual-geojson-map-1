@@ -60,7 +60,7 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import Overlay from 'ol/Overlay';
 import Select from 'ol/interaction/Select';
-import { compute_line_width, escapeHtml, logExceptions } from "./util";
+import { compute_line_width, escapeHtml, logExceptions } from "./util/misc";
 import { get_table_column_index } from "./nicks_pbiviz_utils";
 import Geometry from "ol/geom/Geometry";
 
@@ -68,6 +68,7 @@ import Geometry from "ol/geom/Geometry";
 import * as SECRETS from "./.secrets.json";
 
 import { layer_state_road_ticks, layer_state_road, layer_other_roads, road_network_styles } from './nickmap/layer_road_network';
+import {Fetch_Queue} from './util/Fetch_Queue'
 
 export let map: OpenLayersMap;
 
@@ -90,9 +91,12 @@ export class Visual implements IVisual {
 	private properties_parser: PropertiesParser;
 
 	private feature_id_counter = 0; // IDs must be manually added to ensure that certain open layers features work as expected. The selection interaction for example may rely on the feature ID being unique.
+	featureProjection: any;
+	dataProjection: any;
+	geo_json_parser: GeoJSON;
+	layer_visual_data_vector_source: VectorSource<Geometry>;
 
 	constructor(options: VisualConstructorOptions) {
-		
 		//this.host = options.host;
 		this.target_element = options.element;
 		this.target_element.style.display = "grid";
@@ -106,7 +110,7 @@ export class Visual implements IVisual {
 		// VERSION DISPLAY
 		////////////////////////////////////////////////////////
 		let version_display = document.createElement("div");
-		version_display.innerHTML = "v2021.03.31 NickMap"
+		version_display.innerHTML = "Live Feasibility Test - TESTING ONLY - v2021.04.19 NickMap"
 		version_display.setAttribute("style", 'padding:2px;position:fixed;top:2px;right:10px;display:inline-block;font-size:80%;color:grey;');
 		var control_version_display = new Control({
 			element: version_display,
@@ -142,8 +146,9 @@ export class Visual implements IVisual {
 		////////////////////////////////////////////////////////
 		// LAYER VISUAL DATA
 		////////////////////////////////////////////////////////
+		this.layer_visual_data_vector_source = new VectorSource();
 		this.layer_visual_data = new VectorLayer({
-			source: new VectorSource(),
+			source: this.layer_visual_data_vector_source,
 			style: (feature, resolution) => {
 
 				let color = feature.get("__color");
@@ -265,6 +270,15 @@ export class Visual implements IVisual {
 			view: this.mapview,
 			interactions: ol_interaction_defaults().extend([select_interaction])
 		});
+		
+		this.featureProjection = this.mapview.getProjection()
+		this.dataProjection = new GeoJSON().readProjection({ "crs": { "type": "EPSG", "properties": { "code": 4326 } } })
+		this.geo_json_parser = new GeoJSON({
+			featureProjection:this.featureProjection,
+			dataProjection:this.dataProjection
+		});
+
+
 	}
 
 	public set_map_background(bgname:string){
@@ -285,17 +299,15 @@ export class Visual implements IVisual {
 
 	@logExceptions()
 	public update(options: VisualUpdateOptions) {
-
-        // Only update when the data changes... ignore 'resize' 'viewmode' 'style' etc.
-		if(options.type!= powerbi.VisualUpdateType.Data) return;
+		
+		// Only update when the data changes... ignore 'resize' 'viewmode' 'style' etc.
+		//if(options.type!= powerbi.VisualUpdateType.Data) return;
 		
 		////////////////////////////////////////////////////////
 		// REJECT CALLS TO UPDATE IF NOT FULLY CONSTRUCTED
 		// OR IF OPTIONS IS NOT POPULATED WITH A TABLE OF DATA 
 		////////////////////////////////////////////////////////
-		if (!(this.map_target_div && options?.dataViews?.[0]?.categorical)) return;
 		
-
 		let data_view = options.dataViews[0]
 
 		this.properties_parser = PropertiesParser.parse<PropertiesParser>(data_view);
@@ -313,6 +325,9 @@ export class Visual implements IVisual {
 		road_network_styles["DEFAULT"].getStroke().setColor(this.properties_parser.StateRoadSettings.local_road_color);
 		road_network_styles["Main Roads Controlled Path"].getStroke().setColor(this.properties_parser.StateRoadSettings.psp_road_color);
 
+		console.log("update: properties done")
+
+		if (!(this.map_target_div && data_view?.categorical)) return;
 
 		// typescript wont let me use flatMap :(
 		let roles: Set<string> = new Set();
@@ -321,11 +336,7 @@ export class Visual implements IVisual {
 				roles.add(role);
 			}
 		}
-
-		// Bailout if we have no geometry to draw
-		if (!roles.has("geojson_field")){
-			return;
-		}
+		console.log("update: roles collected")
 
 		// PREPARE TO HAVE YOUR MIND MELTED
 		// BY PowerBI's ULTRA CONVOLUTED DATA STRUCTURES
@@ -351,12 +362,12 @@ export class Visual implements IVisual {
 			role_category_index.set(role, res);
 		}
 
+		let fetch_queue = new Fetch_Queue(30);
 		
-
 		let json_row_Features = []
 
-		for(let row_index=0;row_index<role_category_index.get("geojson_field")[0].category.values.length;row_index++){
-
+		for(let row_index=0;row_index<role_category_index.get("road_column")[0].category.values.length;row_index++){
+			
 			let row_values:{[key:string]:{display_name:string, value:any}[]} = {};
 			
 			// TODO: We have made the assumption that the values in each data_view.categorical.categories[...].values correspond with each other.
@@ -366,69 +377,60 @@ export class Visual implements IVisual {
 			for (let [role, category_array] of role_category_index){
 				row_values[role] = category_array.map(({display_name, category})=>({display_name, value:category.values[row_index]}));
 			}
-			debugger
-			let json_parsed;
 
-			try {
-				json_parsed = JSON.parse(row_values["geojson_field"][0].value as string)
-			} catch (e) {
-				return; // TODO: try notify user of fail.
-			}
-
-			json_parsed = {
-				...json_parsed,
-				id: this.feature_id_counter++,
-				properties: {
-					//...json_parsed.properties,
-					__other_columns: row_values?.["other_columns"]?.map(({display_name, value}, index)=>({
-						display_name:display_name,
-						value:value
-					})) ?? [],
-					__color: row_values?.["colour_column"]?.[0].value ?? "#FF0000",
-					__line_weight: row_values?.["line_weight_column"]?.[0].value ?? 1,
-					__point_diameter: row_values?.["point_diameter_column"]?.[0].value ?? 5,
-				}
-			};
-			json_row_Features.push(json_parsed)
-		}
-
-		if (json_row_Features.length === 0) {
-			this.clearVectorLayers()
-			return
-		}
-
-		let parsed_features = [];
-		try {
-			// Because the GeoJSON object is not connected to the map, it doesn't know the projection we are using
-			// therefore we need to tell it.
-			let featureProjection = this.mapview.getProjection()
-			let dataProjection = new GeoJSON().readProjection({ "crs": { "type": "EPSG", "properties": { "code": 4326 } } })
-			parsed_features = new GeoJSON({ featureProjection, dataProjection }).readFeatures({
-				"type": "FeatureCollection",
-				"features": json_row_Features
+			let url_params = new URLSearchParams({
+				"road":row_values["road_column"][0].value.toString(),
+				"slk_from":row_values["slk_from_column"][0].value.toString(),
+				"slk_to":row_values["slk_from_column"][0].value.toString(),
+				"offset":row_values["offset_column"][0].value.toString(),
+				"cwy":row_values["cwy_column"][0].value.toString()
 			});
-		} catch (e) {
-			// TODO: notify user that readFeatures failed.
-			//console.log("Error: While all GeoJSON text was successfully parsed into JSON, OpenLayers was unable to parse the resulting JSON: new ol.GeoJSON().readFeatures(...) failed. Is the input data valid GeoJSON with coordinates in EPSG:4326 ?")
-			this.clearVectorLayers()
-			return
-		}
-		if (parsed_features.length === 0) {
-			// TODO: notify user that readFeatures failed. This seems unlikely to happen.
-			//console.log("Error: While all GeoJSON text was successfully parsed into JSON and OpenLayers successfully called ol.GeoJSON().readFeatures(...), an empty list of OpenLayers features was returned despite a non-empty list of input GeoJSON features.")
-			this.clearVectorLayers()
-			return
-		}
-		let new_vector_source = new VectorSource({
-			features: parsed_features
-		})
 
-		this.setVectorLayerSource(new_vector_source);
-
-		if(this.properties_parser.OtherMapSettings.zoom_to_fit_on_update === true){
-			this.mapview.fit(new_vector_source.getExtent());
+			debugger;
+			fetch_queue.fetch("nickmap:8025/query/?"+url_params.toString())
+				.then((response:Response)=>response.json())
+				.then(json_parsed=>{
+					json_parsed = {
+						type:"Feature",
+						geometry:{
+							type:"MultiLineString",
+							coordinates:json_parsed
+						},
+						id: this.feature_id_counter++,
+						properties: {
+							//...json_parsed.properties,
+							__other_columns: row_values?.["other_columns"]?.map(({display_name, value}, index)=>({
+								display_name:display_name,
+								value:value
+							})) ?? [],
+							__color: row_values?.["colour_column"]?.[0].value ?? "#FF0000",
+							__line_weight: row_values?.["line_weight_column"]?.[0].value ?? 1,
+							__point_diameter: row_values?.["point_diameter_column"]?.[0].value ?? 5,
+						}
+					}
+					
+					try{
+						this.layer_visual_data_vector_source.addFeatures(
+							this.geo_json_parser.readFeatures({
+								"type": "FeatureCollection",
+								"features": json_row_Features
+							})
+						);
+					}catch(e){
+						console.log(`feature could not be added:  ${e}`)
+					}
+					
+				});
 		}
 
+		this.layer_visual_data_vector_source.clear();
+
+		fetch_queue.all()
+		// .then(()=>{
+		// 	if(this.properties_parser.OtherMapSettings.zoom_to_fit_on_update === true){
+		// 		this.mapview.fit(this.layer_visual_data_vector_source.getExtent());
+		// 	}
+		// })
 	}
 
 	private clearVectorLayers() {
@@ -449,6 +451,7 @@ export class Visual implements IVisual {
 	//  this appears to be the idiomatic way of doing it, and hopefully good enough if we don't need fancy behaviour.
 
 	public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): VisualObjectInstanceEnumeration {
+		console.log("visual enumerated properties")
 		return PropertiesParser.enumerateObjectInstances(this.properties_parser || PropertiesParser.getDefault(), options);
 	}
 }
